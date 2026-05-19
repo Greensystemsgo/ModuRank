@@ -58,6 +58,7 @@ from fetchers import (  # noqa: E402
     fbi_crime,
     geonames_cities,
     open_meteo,
+    open_meteo_grid,
     openweather_air,
     redfin,
     static_tables,
@@ -435,10 +436,12 @@ def _normalize_city(values: dict[tuple[str, str], float], lower_is_better: bool)
     return {k: (v - lo) / spread for k, v in values.items()}
 
 
-def write_cities_sqlite() -> None:
+def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
     """Separate SQLite file containing city geometry + per-city ratings.
 
     Lazy-loaded by the frontend the first time the user focuses a state.
+    `state_modules` is the list of state-level module dicts so we can copy
+    their per-state ratings into the cities DB as the inheritance fallback.
     """
     if not os.environ.get("MODURANK_LOAD_CITIES") == "1":
         print("\nSkipping cities DB (set MODURANK_LOAD_CITIES=1 to enable)")
@@ -462,6 +465,20 @@ def write_cities_sqlite() -> None:
     except Exception:
         print("  [WARN] Census places fetch failed")
         traceback.print_exc()
+
+    # Pull per-city climate (grid-cached Open-Meteo).
+    if os.environ.get("MODURANK_LOAD_CITY_WEATHER") == "1":
+        print("\nFetching per-city climate (Open-Meteo grid)...")
+        try:
+            climate_modules = open_meteo_grid.fetch_city_climate(cities)
+            for m in climate_modules:
+                print(f"  [Open-Meteo grid] {m['id']} ({len(m['data']):,} cities)")
+            city_modules.extend(climate_modules)
+        except Exception:
+            print("  [WARN] Open-Meteo grid fetch failed")
+            traceback.print_exc()
+    else:
+        print("\nSkipping city climate (set MODURANK_LOAD_CITY_WEATHER=1)")
 
     if CITIES_DB_PATH.exists():
         CITIES_DB_PATH.unlink()
@@ -497,6 +514,17 @@ def write_cities_sqlite() -> None:
             );
             CREATE INDEX city_rating_by_module ON city_rating(module_id);
             CREATE INDEX city_rating_by_city   ON city_rating(city_id);
+
+            -- State-level normalized values mirrored from the states DB so
+            -- city scoring can fall back when no city-level data exists.
+            CREATE TABLE state_rating (
+                module_id  TEXT NOT NULL,
+                state      TEXT NOT NULL,
+                value      REAL NOT NULL,
+                normalized REAL NOT NULL,
+                PRIMARY KEY (module_id, state)
+            );
+            CREATE INDEX state_rating_by_module ON state_rating(module_id);
         """)
         cur.executemany(
             "INSERT INTO city (state, name, latitude, longitude, population) VALUES (?, ?, ?, ?, ?)",
@@ -529,6 +557,34 @@ def write_cities_sqlite() -> None:
                 inserted += 1
             print(f"  [city_rating] {m['id']}: {inserted:,} city rows inserted")
 
+        # Mirror state-level modules into the cities DB so cities can inherit
+        # those values when they have no city-level data of their own (taxes,
+        # life expectancy, disasters, gun friendliness, climate, etc.).
+        city_module_ids = {m["id"] for m in city_modules}
+        for m in (state_modules or []):
+            if not m.get("data"):
+                continue
+            # If a module also has city-level data, we still write state
+            # ratings to enable fallback for cities in that state that
+            # didn't have an ACS estimate.
+            norm = normalize(m["data"], m["lower_is_better"])
+            for state, raw_val in m["data"].items():
+                cur.execute(
+                    "INSERT OR REPLACE INTO state_rating (module_id, state, value, normalized) VALUES (?, ?, ?, ?)",
+                    (m["id"], state, raw_val, norm[state]),
+                )
+            # If module wasn't already declared in cities DB module table,
+            # add it now so the frontend can name it in tooltips.
+            if m["id"] not in city_module_ids:
+                cur.execute(
+                    """INSERT OR IGNORE INTO module (id, label, description, unit, lower_is_better)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (m["id"], m["label"], m.get("description"), m.get("unit"),
+                     1 if m["lower_is_better"] else 0),
+                )
+        n_state_ratings = cur.execute("SELECT COUNT(*) FROM state_rating").fetchone()[0]
+        print(f"  [state_rating] {n_state_ratings:,} state rows mirrored")
+
         conn.commit()
         cur.execute("VACUUM")
         conn.commit()
@@ -552,7 +608,7 @@ def main() -> None:
 
     write_json(modules)
     write_sqlite(modules)
-    write_cities_sqlite()
+    write_cities_sqlite(state_modules=modules)
     total_ratings = sum(len(m["data"]) for m in modules)
     print(f"\nBuilt {len(modules)} modules, {total_ratings} ratings")
     print(f"  {DB_PATH.relative_to(ROOT)}  ({DB_PATH.stat().st_size // 1024} KB)")

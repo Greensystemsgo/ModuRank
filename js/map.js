@@ -379,16 +379,18 @@ function _showCityTip(event, city) {
       const weaknesses = sorted.slice(-3).reverse();
       html += `<div class="tip-section">Strengths</div>`;
       for (const row of strengths) {
-        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
+        const mark = row.inherited ? ' <span style="opacity:0.5;font-size:9px">(state)</span>' : "";
+        html += `<div class="tip-row"><span class="k">${row.label}${mark}</span><span class="v">${_fmtValue(row)}</span></div>`;
       }
       if (enabled.length > 3) {
         html += `<div class="tip-section">Weaknesses</div>`;
         for (const row of weaknesses) {
-          html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
+          const mark = row.inherited ? ' <span style="opacity:0.5;font-size:9px">(state)</span>' : "";
+          html += `<div class="tip-row"><span class="k">${row.label}${mark}</span><span class="v">${_fmtValue(row)}</span></div>`;
         }
       }
     } else if (rows.length === 0) {
-      html += `<div class="tip-row"><span class="k" style="opacity:0.6">No Census data for this place</span></div>`;
+      html += `<div class="tip-row"><span class="k" style="opacity:0.6">No data for this place</span></div>`;
     }
   }
 

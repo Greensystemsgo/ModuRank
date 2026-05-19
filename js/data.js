@@ -37,12 +37,15 @@ export function getCitiesInState(citiesDb, stateName) {
   return out;
 }
 
-// Compute per-city weighted score for all cities in a given state, using
-// whichever modules in `weights` actually have city-level data.
+// Compute per-city weighted score for all cities in a given state.
+// For each (city, module) where we have city-level data, use that.
+// Otherwise fall back to the city's STATE-level normalized value (which
+// every city in that state shares). This way every city has a score for
+// every active module — taxes, gun friendliness, disasters, etc. all
+// contribute even when only state-level data exists.
 export function computeCityRanking(citiesDb, weights, stateName) {
   const active = weights.filter((w) => w.weight > 0);
   if (active.length === 0) {
-    // No active factors — return all cities with score 0.
     return getCitiesInState(citiesDb, stateName).map((c) => ({
       id: c.id, name: c.name, latitude: c.latitude, longitude: c.longitude,
       population: c.population, score: null, factors: 0,
@@ -58,14 +61,23 @@ export function computeCityRanking(citiesDb, weights, stateName) {
       SELECT key AS module_id, CAST(value AS REAL) AS weight
       FROM json_each(:weights)
     ),
+    /* per-city per-module COALESCEd normalized value: city-level wins, else state-level */
+    city_x_w AS (
+      SELECT c.id AS city_id, w.module_id, w.weight,
+             COALESCE(cr.normalized, sr.normalized) AS normalized
+      FROM city c
+      CROSS JOIN w
+      LEFT JOIN city_rating cr ON cr.city_id = c.id AND cr.module_id = w.module_id
+      LEFT JOIN state_rating sr ON sr.state = c.state AND sr.module_id = w.module_id
+      WHERE c.state = :state
+    ),
     contrib AS (
-      SELECT cr.city_id,
-             SUM(cr.normalized * w.weight) AS num,
-             SUM(w.weight)                 AS den,
-             COUNT(*)                      AS factors
-      FROM city_rating cr
-      JOIN w ON w.module_id = cr.module_id
-      GROUP BY cr.city_id
+      SELECT city_id,
+             SUM(CASE WHEN normalized IS NOT NULL THEN normalized * weight ELSE 0 END) AS num,
+             SUM(CASE WHEN normalized IS NOT NULL THEN weight ELSE 0 END) AS den,
+             SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors
+      FROM city_x_w
+      GROUP BY city_id
     )
     SELECT c.id, c.name, c.latitude, c.longitude, c.population,
            CASE WHEN co.den > 0 THEN co.num / co.den ELSE NULL END AS score,
@@ -86,12 +98,19 @@ export function computeCityRanking(citiesDb, weights, stateName) {
 }
 
 export function getCityBreakdown(citiesDb, cityId) {
+  // Return every module, preferring city-level value where present, else
+  // the state-level fallback. Includes an `inherited` flag so the tooltip
+  // can mark state-inherited rows ('TX-wide').
   const stmt = citiesDb.prepare(`
+    WITH city_info AS (SELECT id, state FROM city WHERE id = :id)
     SELECT m.id AS module_id, m.label, m.unit, m.lower_is_better,
-           cr.value, cr.normalized
-    FROM city_rating cr
-    JOIN module m ON m.id = cr.module_id
-    WHERE cr.city_id = :id
+           COALESCE(cr.value, sr.value)       AS value,
+           COALESCE(cr.normalized, sr.normalized) AS normalized,
+           CASE WHEN cr.value IS NOT NULL THEN 0 ELSE 1 END AS inherited
+    FROM module m
+    LEFT JOIN city_rating cr ON cr.module_id = m.id AND cr.city_id = :id
+    LEFT JOIN state_rating sr ON sr.module_id = m.id AND sr.state = (SELECT state FROM city_info)
+    WHERE COALESCE(cr.value, sr.value) IS NOT NULL
     ORDER BY m.label
   `);
   stmt.bind({ ":id": cityId });
