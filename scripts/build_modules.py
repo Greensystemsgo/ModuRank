@@ -60,6 +60,7 @@ from fetchers import (  # noqa: E402
     open_meteo,
     open_meteo_grid,
     openweather_air,
+    openweather_grid,
     redfin,
     static_tables,
 )
@@ -479,6 +480,20 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
             traceback.print_exc()
     else:
         print("\nSkipping city climate (set MODURANK_LOAD_CITY_WEATHER=1)")
+
+    # Pull per-city air quality (grid-cached OpenWeather).
+    if os.environ.get("MODURANK_LOAD_CITY_AIR") == "1":
+        print("\nFetching per-city air quality (OpenWeather grid)...")
+        try:
+            air_modules = openweather_grid.fetch_city_air(cities)
+            for m in air_modules:
+                print(f"  [OpenWeather grid] {m['id']} ({len(m['data']):,} cities)")
+            city_modules.extend(air_modules)
+        except Exception:
+            print("  [WARN] OpenWeather grid fetch failed")
+            traceback.print_exc()
+    else:
+        print("\nSkipping city air quality (set MODURANK_LOAD_CITY_AIR=1)")
 
     if CITIES_DB_PATH.exists():
         CITIES_DB_PATH.unlink()
