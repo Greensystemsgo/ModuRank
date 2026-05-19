@@ -1,0 +1,13 @@
+{
+  "modules": [
+    "cost_of_living",
+    "uv_index",
+    "disasters",
+    "home_insurance",
+    "public_lands",
+    "humidity",
+    "sales_tax",
+    "income_tax",
+    "gun_friendliness"
+  ]
+}

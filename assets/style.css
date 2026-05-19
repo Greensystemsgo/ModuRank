@@ -1,0 +1,277 @@
+:root {
+  --bg: #f7f7f9;
+  --bg-card: #ffffff;
+  --border: #e3e3ea;
+  --text: #1a1a1f;
+  --text-muted: #6b6b75;
+  --accent: #2f6df6;
+  --accent-soft: #e5edff;
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  --map-fill-empty: #e7e7ec;
+  --map-stroke: #ffffff;
+  --map-stroke-hover: #1a1a1f;
+  --scale-lo: #f7dada;
+  --scale-mid: #fff1c4;
+  --scale-hi: #c8ecc4;
+  --scale-top: #5fbf5a;
+}
+
+[data-theme="dark"] {
+  --bg: #0e1014;
+  --bg-card: #161922;
+  --border: #262a36;
+  --text: #e8eaf0;
+  --text-muted: #9aa0b0;
+  --accent: #6ea1ff;
+  --accent-soft: #1c2640;
+  --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.25);
+  --map-fill-empty: #232634;
+  --map-stroke: #0e1014;
+  --map-stroke-hover: #ffffff;
+  --scale-lo: #4a1e1e;
+  --scale-mid: #4a3f1e;
+  --scale-hi: #1e4a25;
+  --scale-top: #4ade80;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.tagline {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: var(--accent-soft); }
+
+[data-theme="dark"] .theme-icon-dark { display: none; }
+[data-theme="dark"] .theme-icon-light { display: inline; }
+[data-theme="light"] .theme-icon-dark { display: inline; }
+[data-theme="light"] .theme-icon-light { display: none; }
+
+.app-main {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.hint { color: var(--text-muted); font-size: 13px; margin: -4px 0 12px; }
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn-secondary:hover { background: var(--accent-soft); }
+
+.muted { color: var(--text-muted); font-size: 13px; }
+
+/* ---- Map ---- */
+.map-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  position: relative;
+}
+.map-wrap svg { width: 100%; height: 100%; display: block; }
+
+.state-path {
+  stroke: var(--map-stroke);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: stroke 0.1s ease, opacity 0.1s ease;
+}
+.state-path:hover {
+  stroke: var(--map-stroke-hover);
+  stroke-width: 1.6;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.legend-bar {
+  width: 160px;
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--scale-lo), var(--scale-mid), var(--scale-hi), var(--scale-top));
+  border: 1px solid var(--border);
+}
+
+.map-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.1s;
+  max-width: 240px;
+  z-index: 10;
+}
+.map-tooltip.visible { opacity: 1; }
+.map-tooltip .tip-state { font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+.map-tooltip .tip-row { display: flex; justify-content: space-between; gap: 12px; }
+.map-tooltip .tip-row .k { color: var(--text-muted); }
+
+/* ---- Sliders ---- */
+.sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px 24px;
+}
+
+.slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slider-row .label-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.slider-row .label-line .label {
+  font-weight: 500;
+  font-size: 14px;
+}
+.slider-row .label-line .weight {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.slider-row .description {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+/* ---- Ranking ---- */
+.ranking {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 12px;
+}
+.ranking li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 14px;
+  cursor: default;
+}
+.ranking li .rank {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: right;
+}
+.ranking li .score {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ranking li.top-rank {
+  border-color: var(--scale-top);
+  background: var(--accent-soft);
+}
+.ranking li.top-rank .rank { color: var(--scale-top); }
+.ranking li.disabled { opacity: 0.5; }
+
+.app-footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 24px 16px 32px;
+}
+
+@media (max-width: 600px) {
+  .map-wrap { aspect-ratio: 4 / 3; }
+  .app-header { padding: 14px 16px; }
+}

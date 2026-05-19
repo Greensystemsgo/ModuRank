@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ModuRank — Find your best US state</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>ModuRank</h1>
+      <p class="tagline">Slide the dials. Find your state.</p>
+    </div>
+    <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light mode" title="Toggle theme">
+      <span class="theme-icon-dark">&#9789;</span>
+      <span class="theme-icon-light">&#9728;</span>
+    </button>
+  </header>
+
+  <main class="app-main">
+    <section class="card map-card">
+      <div class="card-header">
+        <h2>Map</h2>
+        <div class="legend" id="map-legend"></div>
+      </div>
+      <div id="map" class="map-wrap"></div>
+      <div id="map-tooltip" class="map-tooltip" role="tooltip"></div>
+    </section>
+
+    <section class="card sliders-card">
+      <div class="card-header">
+        <h2>Weights</h2>
+        <button id="reset-weights" class="btn-secondary">Reset</button>
+      </div>
+      <p class="hint">0 = ignore this factor. Higher = matters more.</p>
+      <div id="sliders" class="sliders"></div>
+    </section>
+
+    <section class="card ranking-card">
+      <div class="card-header">
+        <h2>Ranking</h2>
+        <span id="ranking-summary" class="muted"></span>
+      </div>
+      <ol id="ranking" class="ranking"></ol>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>ModuRank &middot; static data, no APIs hit at runtime</span>
+  </footer>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
