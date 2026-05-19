@@ -130,6 +130,15 @@ export function renderMap(topology) {
   // fast or onto a control like the zoom buttons).
   _map.getContainer().addEventListener("mouseleave", _hideTip);
 
+  // Click on empty water/background → clear focus
+  _map.on("click", (e) => {
+    // If the click happened on a state polygon, _focusState already ran.
+    // We only want to clear when the click was on the empty map surface.
+    if (e.originalEvent && e.originalEvent.target === _map.getContainer()) {
+      if (_focusedState) _clearFocus();
+    }
+  });
+
   _initStyleToggle();
   _initFocusChip();
   _renderLegend();
@@ -390,9 +399,17 @@ async function _renderCitiesForFocus(stateName) {
       fillColor: fill,
       fillOpacity: 0.9,
     });
-    marker.on("mouseover", (e) => _showCityTip(e.originalEvent, c, stateName));
+    marker.on("mouseover", (e) => {
+      marker.setStyle({ weight: 2.5, color: "var(--accent)" });
+      marker.setRadius(radius * 1.4);
+      _showCityTip(e.originalEvent, c, stateName);
+    });
     marker.on("mousemove", (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent));
-    marker.on("mouseout", _hideTip);
+    marker.on("mouseout", () => {
+      marker.setStyle({ weight: isPin ? 2.5 : 0.8, color: isPin ? "var(--accent)" : stroke });
+      marker.setRadius(radius);
+      _hideTip();
+    });
     marker.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
       togglePin(c.name, stateName, "city");
