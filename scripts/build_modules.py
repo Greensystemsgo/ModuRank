@@ -380,23 +380,28 @@ def write_sqlite(modules: list[dict]) -> None:
                 (name, name, fips),
             )
 
-        # City rows from GeoNames — every incorporated US populated place.
-        try:
-            print("\nLoading cities from GeoNames...")
-            cities = geonames_cities.fetch_cities()
-            print(f"  {len(cities):,} cities")
-            cur.executemany(
-                """INSERT OR IGNORE INTO place
-                   (kind, state, name, latitude, longitude, population)
-                   VALUES ('city', ?, ?, ?, ?, ?)""",
-                [
-                    (c["state"], c["name"], c["latitude"], c["longitude"], c["population"])
-                    for c in cities
-                ],
-            )
-        except Exception:
-            print("  [WARN] city load failed — continuing with states only")
-            traceback.print_exc()
+        # City rows from GeoNames — opt-in via env var while the Leaflet UI
+        # is still under construction. Loading 155k cities balloons the
+        # SQLite from ~250KB to ~19MB and there's no UI to render them yet.
+        if os.environ.get("MODURANK_LOAD_CITIES") == "1":
+            try:
+                print("\nLoading cities from GeoNames...")
+                cities = geonames_cities.fetch_cities()
+                print(f"  {len(cities):,} cities")
+                cur.executemany(
+                    """INSERT OR IGNORE INTO place
+                       (kind, state, name, latitude, longitude, population)
+                       VALUES ('city', ?, ?, ?, ?, ?)""",
+                    [
+                        (c["state"], c["name"], c["latitude"], c["longitude"], c["population"])
+                        for c in cities
+                    ],
+                )
+            except Exception:
+                print("  [WARN] city load failed — continuing with states only")
+                traceback.print_exc()
+        else:
+            print("\nSkipping city load (set MODURANK_LOAD_CITIES=1 to enable)")
 
         # State-level place_id lookup for the module data insert below.
         # (City ratings come in later phases.)
