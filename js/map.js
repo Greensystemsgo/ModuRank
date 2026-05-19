@@ -399,7 +399,7 @@ function _showCityTip(event, city) {
 
 function _showLoading() {
   const tip = document.getElementById("map-tooltip");
-  tip.innerHTML = `<div class="tip-state">Loading cities…</div><div class="tip-row"><span class="k">~13 MB, one-time</span></div>`;
+  tip.innerHTML = `<div class="tip-state">Loading cities…</div><div class="tip-row"><span class="k">~29 MB · one-time fetch, then cached</span></div>`;
   tip.style.left = "50%";
   tip.style.top = "30%";
   tip.style.transform = "translate(-50%, 0)";
