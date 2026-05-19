@@ -17,7 +17,10 @@ let _weightsByModule = new Map();
 let _onFocus = null;
 let _focusedState = null;
 
-const CONTINENTAL_BOUNDS = [[24.0, -125.0], [50.0, -66.5]];
+// Wide enough to fit continental US + Hawaii in the default view.
+// Alaska remains reachable by panning north. (Real-geography Leaflet
+// can't easily show all 50 states + DC without making CONUS tiny.)
+const CONTINENTAL_BOUNDS = [[18.0, -161.0], [50.0, -66.5]];
 
 const TILE_PROVIDERS = {
   street_light: {
@@ -102,11 +105,17 @@ export function renderMap(topology) {
     onEachFeature: (feature, layer) => {
       layer.on({
         mouseover: (e) => _hoverState(e, feature),
-        mouseout: (e) => _stateLayer.resetStyle(e.target),
-        click: (e) => _focusState(feature, e.target),
+        mousemove: (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent),
+        mouseout:  (e) => { _stateLayer.resetStyle(e.target); _hideTip(); },
+        click:     (e) => _focusState(feature, e.target),
       });
     },
   }).addTo(_map);
+
+  // Belt-and-suspenders: hide the tip when the cursor leaves the map area
+  // entirely (sometimes the per-state mouseout doesn't fire if you exit
+  // fast or onto a control like the zoom buttons).
+  _map.getContainer().addEventListener("mouseleave", _hideTip);
 
   _initStyleToggle();
   _initFocusChip();
