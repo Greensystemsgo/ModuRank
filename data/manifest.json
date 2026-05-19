@@ -30,6 +30,8 @@
     "days_on_market",
     "price_per_sqft",
     "housing_inventory",
-    "life_expectancy"
+    "life_expectancy",
+    "violent_crime",
+    "property_tax"
   ]
 }

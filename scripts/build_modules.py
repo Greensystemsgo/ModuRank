@@ -57,6 +57,7 @@ from fetchers import (  # noqa: E402
     open_meteo,
     openweather_air,
     redfin,
+    static_tables,
 )
 
 # State name -> 2-digit FIPS code (matches us-atlas state IDs).
@@ -287,13 +288,14 @@ def build_api_modules() -> list[dict]:
     fips_to_name = {fips: name for name, fips in STATE_FIPS.items()}
     api_modules: list[dict] = []
     for label, fn in [
-        ("Census ACS",   lambda: census_acs.fetch_modules(fips_to_name)),
-        ("BLS LAUS",     lambda: bls_laus.fetch_modules(fips_to_name)),
-        ("Open-Meteo",   lambda: open_meteo.fetch_modules(fips_to_name)),
-        ("OpenWeather",  lambda: openweather_air.fetch_modules(fips_to_name)),
-        ("Redfin",       lambda: redfin.fetch_modules(fips_to_name)),
-        ("CDC NCHS",     lambda: cdc_life_expectancy.fetch_modules(fips_to_name)),
-        ("FBI CDE",      lambda: fbi_crime.fetch_modules(fips_to_name)),
+        ("Census ACS",    lambda: census_acs.fetch_modules(fips_to_name)),
+        ("BLS LAUS",      lambda: bls_laus.fetch_modules(fips_to_name)),
+        ("Open-Meteo",    lambda: open_meteo.fetch_modules(fips_to_name)),
+        ("OpenWeather",   lambda: openweather_air.fetch_modules(fips_to_name)),
+        ("Redfin",        lambda: redfin.fetch_modules(fips_to_name)),
+        ("CDC NCHS",      lambda: cdc_life_expectancy.fetch_modules(fips_to_name)),
+        ("Static tables", lambda: static_tables.fetch_modules(fips_to_name)),
+        ("FBI CDE",       lambda: fbi_crime.fetch_modules(fips_to_name)),
     ]:
         try:
             mods = fn()
