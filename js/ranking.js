@@ -1,21 +1,36 @@
-// Ordered list of states. Two modes:
+// Ordered list of states. Modes:
 //   weighted  — show 0-100 weighted-score percentile
 //   single    — show that module's raw value with its unit
+//   cities    — same as weighted but for cities in a focused state
 
 import { isPinned, togglePin } from "./compare.js";
 
 export function renderRanking(ranking, activeFactors, opts = {}) {
-  const { mode = "weighted", moduleLabel = null } = opts;
+  const { mode = "weighted", moduleLabel = null, focusedState = null } = opts;
   const ol = document.getElementById("ranking");
   const summary = document.getElementById("ranking-summary");
+  const heading = document.querySelector(".ranking-card .card-header h2");
   ol.innerHTML = "";
+
+  if (heading) {
+    heading.textContent = mode === "cities" ? `Cities in ${focusedState}` : "Ranking";
+  }
 
   if (mode === "single") {
     summary.textContent = `Sorted by ${moduleLabel}`;
+  } else if (mode === "cities") {
+    summary.textContent = activeFactors === 0
+      ? "Turn up a slider to rank these cities"
+      : `${ranking.length} cities scored`;
   } else {
     summary.textContent = activeFactors === 0
       ? "All sliders are at 0 — turn one up to rank states."
       : `${activeFactors} factor${activeFactors === 1 ? "" : "s"} active`;
+  }
+
+  // Sort cities by score descending; states should already be sorted.
+  if (mode === "cities") {
+    ranking = [...ranking].sort((a, b) => (b.score || 0) - (a.score || 0));
   }
 
   // Cap to top 15 by default; user can expand. Keeps the column scannable.
@@ -25,9 +40,9 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
 
   visible.forEach((r, idx) => {
     const li = document.createElement("li");
-    if (idx < 3 && (mode === "single" || activeFactors > 0)) li.classList.add("top-rank");
+    if (idx < 3 && (mode === "single" || mode === "cities" || activeFactors > 0)) li.classList.add("top-rank");
     if (mode === "weighted" && activeFactors === 0) li.classList.add("disabled");
-    if (isPinned(r.state)) li.classList.add("pinned");
+    if (mode !== "cities" && isPinned(r.state)) li.classList.add("pinned");
 
     const rank = document.createElement("span");
     rank.className = "rank";
@@ -41,20 +56,26 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
     score.className = "score";
     if (mode === "single") {
       score.textContent = _fmt(r.value) + (r.unit ? ` ${r.unit}` : "");
+    } else if (mode === "cities") {
+      score.textContent = r.score != null ? (r.score * 100).toFixed(1) : "—";
     } else {
       score.textContent = activeFactors === 0 ? "—" : (r.score * 100).toFixed(1);
     }
 
-    const pinBtn = document.createElement("button");
-    pinBtn.className = "pin-btn";
-    pinBtn.textContent = isPinned(r.state) ? "Pinned" : "Pin";
-    pinBtn.title = isPinned(r.state) ? "Remove from compare" : "Add to compare";
-    pinBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      togglePin(r.state);
-    });
-
-    li.append(rank, name, score, pinBtn);
+    if (mode === "cities") {
+      // Cities can't be pinned (yet); just rank/name/score.
+      li.append(rank, name, score);
+    } else {
+      const pinBtn = document.createElement("button");
+      pinBtn.className = "pin-btn";
+      pinBtn.textContent = isPinned(r.state) ? "Pinned" : "Pin";
+      pinBtn.title = isPinned(r.state) ? "Remove from compare" : "Add to compare";
+      pinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        togglePin(r.state);
+      });
+      li.append(rank, name, score, pinBtn);
+    }
     ol.append(li);
   });
 

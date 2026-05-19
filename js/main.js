@@ -2,7 +2,7 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, listModules, computeRanking, computeSingleFactor, getStateBreakdown } from "./data.js";
+import { loadDatabase, loadCitiesDatabase, listModules, computeRanking, computeSingleFactor, getStateBreakdown, computeCityRanking } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
   resetWeights, randomizeWeights, applyWeights,
@@ -47,27 +47,56 @@ const errBox = (msg) => {
     const initial = readHash();
     if (initial) applyWeights(initial);
 
-    const refresh = () => {
+    let _citiesDb = null;
+    const refresh = async () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
       const sortBy = document.getElementById("sort-by-select").value;
+      const focused = getFocusedState();
 
-      let ranking;
-      if (sortBy && sortBy !== "weighted") {
-        ranking = computeSingleFactor(db, sortBy);
-        updateMap(ranking);
-        renderRanking(ranking, 1, {
+      // State always drives the choropleth map coloring.
+      const stateRanking = (sortBy && sortBy !== "weighted")
+        ? computeSingleFactor(db, sortBy)
+        : computeRanking(db, weights);
+      updateMap(stateRanking);
+
+      // Ranking sidebar switches to cities-in-focused-state when a state
+      // is focused (and we already have the cities DB loaded).
+      let displayRanking = stateRanking;
+      let displayMode = "weighted";
+      if (focused) {
+        if (!_citiesDb) {
+          try { _citiesDb = await loadCitiesDatabase(CITIES_DB_URL); }
+          catch (e) { /* leave _citiesDb null, fall back to states */ }
+        }
+        if (_citiesDb) {
+          const cityRanking = computeCityRanking(_citiesDb, weights, focused)
+            .filter((c) => c.score != null)
+            .map((c) => ({ state: c.name, score: c.score, factors: c.factors }));
+          if (cityRanking.length) {
+            displayRanking = cityRanking;
+            displayMode = "cities";
+          }
+        }
+      }
+
+      if (sortBy && sortBy !== "weighted" && displayMode !== "cities") {
+        renderRanking(displayRanking, 1, {
           mode: "single",
           moduleLabel: modulesById.get(sortBy)?.label || sortBy,
         });
+      } else if (displayMode === "cities") {
+        renderRanking(displayRanking, enabled.length, {
+          mode: "cities",
+          focusedState: focused,
+        });
       } else {
-        ranking = computeRanking(db, weights);
-        updateMap(ranking);
-        renderRanking(ranking, enabled.length);
+        renderRanking(displayRanking, enabled.length);
       }
+
       writeHash(weights);
       setBreakdownContext(db, weights);
-      _updateWinnerChip(ranking, enabled.length, sortBy);
+      _updateWinnerChip(displayRanking, enabled.length, sortBy);
       renderCompare((name) => getStateBreakdown(db, name));
     };
 
