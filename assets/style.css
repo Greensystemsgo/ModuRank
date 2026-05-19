@@ -286,6 +286,42 @@ html, body {
 }
 @media (max-width: 700px) { .map-wrap { height: 340px; } }
 
+/* Cities filter control on the focused map */
+.cities-filter-ctrl {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px !important;
+  padding: 4px 8px 6px;
+  box-shadow: var(--shadow);
+  font-family: inherit;
+}
+.cities-filter-ctrl .cities-filter-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.cities-filter-ctrl .cities-filter-pills { display: flex; gap: 2px; }
+.cities-filter-ctrl button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cities-filter-ctrl button:hover { background: var(--accent-soft); color: var(--accent); }
+.cities-filter-ctrl button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 /* City marker tooltip — small + theme-aware */
 .leaflet-tooltip.city-tooltip {
   background: var(--bg-card);

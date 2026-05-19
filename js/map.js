@@ -20,6 +20,8 @@ let _focusedState = null;
 let _citiesDbUrl = null;
 let _citiesDb = null;
 let _activeWeights = [];
+// 'data' = only cities with at least one rating; 'all' = every geonames entry.
+let _citiesFilter = "data";
 
 // Wide enough to fit continental US + Hawaii in the default view.
 // Alaska remains reachable by panning north. (Real-geography Leaflet
@@ -296,8 +298,41 @@ function _clearFocus() {
     _map.removeLayer(_cityLayer);
     _cityLayer = null;
   }
+  _hideCitiesFilterControl();
   _updateFocusChip();
   if (_onFocus) _onFocus(null);
+}
+
+let _filterCtrlEl = null;
+function _renderCitiesFilterControl(stateName) {
+  if (_filterCtrlEl) return;
+  const ctrl = L.control({ position: "topright" });
+  ctrl.onAdd = function () {
+    const div = L.DomUtil.create("div", "leaflet-bar cities-filter-ctrl");
+    div.innerHTML = `
+      <div class="cities-filter-label">Show</div>
+      <div class="cities-filter-pills">
+        <button data-filter="data" class="${_citiesFilter === "data" ? "active" : ""}">With data</button>
+        <button data-filter="all" class="${_citiesFilter === "all" ? "active" : ""}">All</button>
+      </div>`;
+    L.DomEvent.disableClickPropagation(div);
+    div.querySelectorAll("button").forEach((b) => {
+      b.addEventListener("click", () => {
+        _citiesFilter = b.dataset.filter;
+        div.querySelectorAll("button").forEach((bb) => bb.classList.toggle("active", bb.dataset.filter === _citiesFilter));
+        if (_focusedState) _renderCitiesForFocus(_focusedState);
+      });
+    });
+    return div;
+  };
+  ctrl.addTo(_map);
+  _filterCtrlEl = ctrl;
+}
+function _hideCitiesFilterControl() {
+  if (_filterCtrlEl) {
+    _map.removeControl(_filterCtrlEl);
+    _filterCtrlEl = null;
+  }
 }
 
 async function _renderCitiesForFocus(stateName) {
@@ -321,8 +356,12 @@ async function _renderCitiesForFocus(stateName) {
   }
 
   // Score each city with the current weights.
-  const cities = computeCityRanking(_citiesDb, _activeWeights, stateName);
+  let cities = computeCityRanking(_citiesDb, _activeWeights, stateName);
   if (!cities.length) return;
+  if (_citiesFilter === "data") {
+    cities = cities.filter((c) => c.factors > 0 || (c.population && c.population > 0));
+  }
+  _renderCitiesFilterControl(stateName);
 
   // Size by population (sqrt scale).
   const maxPop = Math.max(...cities.map((c) => c.population || 1));
