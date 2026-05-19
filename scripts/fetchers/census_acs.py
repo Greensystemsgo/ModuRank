@@ -57,6 +57,15 @@ VARIABLES = {
         "unit": "years",
         "lower_is_better": False,  # neutral; users can disable
     },
+    "commute_time": {
+        "var": "B08303_001E",  # universe: workers 16+ who didn't work from home
+        "category": "Demographics",
+        "label": "Mean Commute Time",
+        "description": f"Mean travel time to work in minutes (ACS 5-year {YEAR}). Lower = less daily friction.",
+        "unit": "minutes",
+        "lower_is_better": True,
+        "_derived": "aggregate_div",  # we need B08303_001E (aggregate minutes) / workers count
+    },
 }
 
 # Land area in square miles (Census 2020 official). Used to derive density.
@@ -90,6 +99,22 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
 
     modules = []
     for mod_id, meta in VARIABLES.items():
+        # Special case: mean commute = aggregate minutes / workers 16+.
+        if meta.get("_derived") == "aggregate_div":
+            data = _fetch_commute_mean(api_key, state_fips_to_name)
+            modules.append({
+                "id": mod_id,
+                "category": meta["category"],
+                "label": meta["label"],
+                "description": meta["description"],
+                "unit": meta["unit"],
+                "source": f"US Census Bureau — ACS 5-year {YEAR} (B08303 ÷ B08301)",
+                "lower_is_better": meta["lower_is_better"],
+                "methodology": None,
+                "data": data,
+            })
+            continue
+
         url = (
             f"https://api.census.gov/data/{YEAR}/acs/acs5"
             f"?get=NAME,{meta['var']}&for=state:*&key={api_key}"
@@ -149,6 +174,50 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "data": density,
         })
 
+    # Broadband subscription % among households (S2801 / DP02). Pull B28002:
+    # B28002_001E = total households (universe)
+    # B28002_004E = with broadband of any type
+    broadband = _fetch_pct(
+        api_key, state_fips_to_name,
+        numer_var="B28002_004E", denom_var="B28002_001E",
+        cache_name=f"census_acs_{YEAR}_broadband.json",
+    )
+    if broadband:
+        modules.append({
+            "id": "broadband_pct",
+            "category": "Demographics",
+            "label": "Broadband Internet %",
+            "description": (
+                f"% of households with any broadband subscription "
+                f"(ACS 5-year {YEAR}). Higher = better connectivity."
+            ),
+            "unit": "%",
+            "source": f"US Census Bureau — ACS 5-year {YEAR} (B28002)",
+            "lower_is_better": False,
+            "methodology": None,
+            "data": broadband,
+        })
+
+    # Uninsured rate (B27001 health insurance coverage).
+    # B27010_001E = civilian noninst pop universe
+    # B27010_017E + _033E + _050E + _066E = uninsured by age bracket (under 19, 19-34, 35-64, 65+)
+    uninsured = _fetch_uninsured(api_key, state_fips_to_name)
+    if uninsured:
+        modules.append({
+            "id": "uninsured_pct",
+            "category": "Health",
+            "label": "Uninsured Rate",
+            "description": (
+                f"% of civilian non-institutionalized population without "
+                f"health insurance (ACS 5-year {YEAR}). Lower = better access."
+            ),
+            "unit": "%",
+            "source": f"US Census Bureau — ACS 5-year {YEAR} (B27010)",
+            "lower_is_better": True,
+            "methodology": None,
+            "data": uninsured,
+        })
+
     # Derived: bachelor's-degree-or-higher % among adults 25+.
     # B15003 universe = population 25 years and over (variable _001E).
     # _022E bachelor's, _023E master's, _024E professional, _025E doctorate.
@@ -170,6 +239,117 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
         })
 
     return modules
+
+
+def _fetch_pct(
+    api_key: str,
+    state_fips_to_name: dict[str, str],
+    numer_var: str,
+    denom_var: str,
+    cache_name: str,
+) -> dict[str, float]:
+    """Generic numerator/denominator * 100 fetch."""
+    url = (
+        f"https://api.census.gov/data/{YEAR}/acs/acs5"
+        f"?get=NAME,{numer_var},{denom_var}&for=state:*&key={api_key}"
+    )
+    try:
+        body = cached_get(url, cache_name)
+    except Exception as e:
+        print(f"  [Census ACS] {cache_name}: {e}")
+        return {}
+    rows = json.loads(body)
+    header = rows[0]
+    numer_idx = header.index(numer_var)
+    denom_idx = header.index(denom_var)
+    state_idx = header.index("state")
+    out: dict[str, float] = {}
+    for row in rows[1:]:
+        name = state_fips_to_name.get(row[state_idx])
+        if not name:
+            continue
+        try:
+            numer = float(row[numer_idx])
+            denom = float(row[denom_idx])
+        except (TypeError, ValueError):
+            continue
+        if denom <= 0:
+            continue
+        out[name] = round(numer / denom * 100, 1)
+    return out
+
+
+def _fetch_uninsured(
+    api_key: str,
+    state_fips_to_name: dict[str, str],
+) -> dict[str, float]:
+    """B27010 — sum the four 'no health insurance coverage' age-bracket vars."""
+    universe = "B27010_001E"
+    uninsured_vars = ["B27010_017E", "B27010_033E", "B27010_050E", "B27010_066E"]
+    gets = [universe] + uninsured_vars
+    url = (
+        f"https://api.census.gov/data/{YEAR}/acs/acs5"
+        f"?get=NAME,{','.join(gets)}&for=state:*&key={api_key}"
+    )
+    try:
+        body = cached_get(url, f"census_acs_{YEAR}_uninsured.json")
+    except Exception as e:
+        print(f"  [Census ACS] uninsured: {e}")
+        return {}
+    rows = json.loads(body)
+    header = rows[0]
+    state_idx = header.index("state")
+    universe_idx = header.index(universe)
+    uninsured_idxs = [header.index(v) for v in uninsured_vars]
+    out: dict[str, float] = {}
+    for row in rows[1:]:
+        name = state_fips_to_name.get(row[state_idx])
+        if not name:
+            continue
+        try:
+            denom = float(row[universe_idx])
+            numer = sum(float(row[i]) for i in uninsured_idxs)
+        except (TypeError, ValueError):
+            continue
+        if denom <= 0:
+            continue
+        out[name] = round(numer / denom * 100, 1)
+    return out
+
+
+def _fetch_commute_mean(
+    api_key: str,
+    state_fips_to_name: dict[str, str],
+) -> dict[str, float]:
+    """Aggregate travel time / workers 16+ = mean commute in minutes."""
+    url = (
+        f"https://api.census.gov/data/{YEAR}/acs/acs5"
+        f"?get=NAME,B08013_001E,B08012_001E&for=state:*&key={api_key}"
+    )
+    try:
+        body = cached_get(url, f"census_acs_{YEAR}_commute.json")
+    except Exception as e:
+        print(f"  [Census ACS] commute: {e}")
+        return {}
+    rows = json.loads(body)
+    header = rows[0]
+    agg_idx = header.index("B08013_001E")   # aggregate travel time
+    workers_idx = header.index("B08012_001E")  # workers 16+ who travel
+    state_idx = header.index("state")
+    out: dict[str, float] = {}
+    for row in rows[1:]:
+        name = state_fips_to_name.get(row[state_idx])
+        if not name:
+            continue
+        try:
+            agg = float(row[agg_idx])
+            workers = float(row[workers_idx])
+        except (TypeError, ValueError):
+            continue
+        if workers <= 0:
+            continue
+        out[name] = round(agg / workers, 1)
+    return out
 
 
 def _fetch_education_pct(

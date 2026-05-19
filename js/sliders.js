@@ -14,6 +14,7 @@ const CATEGORY_ORDER = [
   "Economy",
   "Demographics",
   "Education",
+  "Health",
   "Climate",
   "Safety & Risk",
   "Outdoors",

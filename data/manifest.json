@@ -14,7 +14,10 @@
     "median_rent",
     "population",
     "median_age",
+    "commute_time",
     "population_density",
+    "broadband_pct",
+    "uninsured_pct",
     "bachelors_pct",
     "unemployment",
     "avg_temperature",
@@ -26,6 +29,7 @@
     "median_sale_price",
     "days_on_market",
     "price_per_sqft",
-    "housing_inventory"
+    "housing_inventory",
+    "life_expectancy"
   ]
 }

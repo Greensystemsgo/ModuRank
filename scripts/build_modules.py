@@ -51,6 +51,7 @@ MODULES_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(Path(__file__).parent))
 from fetchers import (  # noqa: E402
     bls_laus,
+    cdc_life_expectancy,
     census_acs,
     fbi_crime,
     open_meteo,
@@ -291,6 +292,7 @@ def build_api_modules() -> list[dict]:
         ("Open-Meteo",   lambda: open_meteo.fetch_modules(fips_to_name)),
         ("OpenWeather",  lambda: openweather_air.fetch_modules(fips_to_name)),
         ("Redfin",       lambda: redfin.fetch_modules(fips_to_name)),
+        ("CDC NCHS",     lambda: cdc_life_expectancy.fetch_modules(fips_to_name)),
         ("FBI CDE",      lambda: fbi_crime.fetch_modules(fips_to_name)),
     ]:
         try:

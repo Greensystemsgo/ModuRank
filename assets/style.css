@@ -264,15 +264,27 @@ html, body {
 .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .preset-select {
-  background: transparent;
+  background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 6px 10px;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 26px;
 }
-.preset-select:hover { background: var(--accent-soft); }
+.preset-select:hover { background-color: var(--accent-soft); }
+.preset-select option {
+  background: var(--bg-card);
+  color: var(--text);
+}
 
 .slider-group { display: flex; flex-direction: column; gap: 10px; }
 
