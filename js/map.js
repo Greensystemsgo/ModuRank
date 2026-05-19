@@ -1,28 +1,51 @@
-// US states choropleth via d3 + topojson + us-atlas.
+// Leaflet-based US map with switchable basemap (outline / street / satellite).
+// State choropleth via GeoJSON layer; click a state to focus on it (zoom in,
+// fire onFocus callback). Hover for full per-state breakdown tooltip.
 
 import { getStateBreakdown } from "./data.js";
 
-let _svg = null;
-let _paths = null;
-let _projection = null;
-let _path = null;
+let _map = null;
+let _tileLayer = null;
+let _stateLayer = null;
+let _cityLayer = null;
+let _currentStyle = "outline";
+let _topology = null;
+let _scoresByName = new Map();
+let _ranksByName = new Map();
 let _db = null;
 let _weightsByModule = new Map();
+let _onFocus = null;
+let _focusedState = null;
 
-export function setBreakdownContext(db, weights) {
-  _db = db;
-  _weightsByModule = new Map(weights.map((w) => [w.id, w.weight]));
-}
+const CONTINENTAL_BOUNDS = [[24.0, -125.0], [50.0, -66.5]];
 
-// 4-stop diverging-warm gradient matching style.css legend.
+const TILE_PROVIDERS = {
+  street_light: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19,
+  },
+  street_dark: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19,
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: 19,
+  },
+};
+
 const scale = (t) => {
-  if (t == null || isNaN(t)) return "var(--map-fill-empty)";
-  // t in [0,1] (already normalized weighted score)
+  if (t == null || isNaN(t)) return null;  // null = use default fill
   const stops = [
-    [0.0, [247, 218, 218]], // --scale-lo
-    [0.4, [255, 241, 196]], // --scale-mid
-    [0.7, [200, 236, 196]], // --scale-hi
-    [1.0, [95, 191, 90]],   // --scale-top
+    [0.0, [247, 218, 218]],
+    [0.4, [255, 241, 196]],
+    [0.7, [200, 236, 196]],
+    [1.0, [95, 191, 90]],
   ];
   for (let i = 1; i < stops.length; i++) {
     const [t1, c1] = stops[i];
@@ -38,76 +61,126 @@ const scale = (t) => {
   return "rgb(95,191,90)";
 };
 
+export function setBreakdownContext(db, weights) {
+  _db = db;
+  _weightsByModule = new Map(weights.map((w) => [w.id, w.weight]));
+}
+
+export function onFocusChange(fn) {
+  _onFocus = fn;
+}
+
 export function renderMap(topology) {
+  _topology = topology;
   const container = document.getElementById("map");
   container.innerHTML = "";
 
-  const states = topojson.feature(topology, topology.objects.states);
-
-  const width = container.clientWidth || 900;
-  const height = Math.round(width * 9 / 16);
-
-  _svg = d3.select(container)
-    .append("svg")
-    .attr("viewBox", `0 0 ${width} ${height}`)
-    .attr("preserveAspectRatio", "xMidYMid meet");
-
-  _projection = d3.geoAlbersUsa().fitSize([width, height], states);
-  _path = d3.geoPath(_projection);
-
-  _paths = _svg.selectAll("path.state-path")
-    .data(states.features)
-    .join("path")
-    .attr("class", "state-path")
-    .attr("d", _path)
-    .attr("fill", "var(--map-fill-empty)")
-    .attr("data-fips", (d) => String(d.id).padStart(2, "0"))
-    .attr("data-name", (d) => d.properties.name)
-    .on("mousemove", (event, d) => showTip(event, d))
-    .on("mouseleave", hideTip);
-
-  // Render a legend strip
-  const legend = document.getElementById("map-legend");
-  legend.innerHTML = `<span>worse</span><span class="legend-bar"></span><span>better</span>`;
-}
-
-let _scoresByFips = new Map();
-let _ranksByFips = new Map();
-
-export function updateMap(ranking) {
-  if (!_paths) return;
-  _scoresByFips = new Map();
-  _ranksByFips = new Map();
-  ranking.forEach((r, idx) => {
-    _scoresByFips.set(r.fips, r);
-    _ranksByFips.set(r.fips, idx + 1);
+  _map = L.map(container, {
+    zoomControl: true,
+    attributionControl: true,
+    minZoom: 3,
+    maxZoom: 12,
+    worldCopyJump: false,
+    preferCanvas: true,
   });
+  _map.fitBounds(CONTINENTAL_BOUNDS);
 
-  _paths.transition()
-    .duration(180)
-    .attr("fill", function () {
-      const fips = this.getAttribute("data-fips");
-      const r = _scoresByFips.get(fips);
-      if (!r || r.factors === 0) return "var(--map-fill-empty)";
-      return scale(r.score);
-    });
+  _applyMapStyle(_currentStyle);
+
+  // Re-style states whenever theme changes — outline mode reads the
+  // CSS-derived fill colors, and the dark/light Carto tile flips with theme.
+  const themeObserver = new MutationObserver(() => {
+    _applyMapStyle(_currentStyle);
+    if (_stateLayer) _stateLayer.setStyle(_styleState);
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // State GeoJSON layer
+  const states = topojson.feature(topology, topology.objects.states);
+  _stateLayer = L.geoJSON(states, {
+    style: _styleState,
+    onEachFeature: (feature, layer) => {
+      layer.on({
+        mouseover: (e) => _hoverState(e, feature),
+        mouseout: (e) => _stateLayer.resetStyle(e.target),
+        click: (e) => _focusState(feature, e.target),
+      });
+    },
+  }).addTo(_map);
+
+  _initStyleToggle();
+  _initFocusChip();
+  _renderLegend();
 }
 
-function showTip(event, d) {
-  const tip = document.getElementById("map-tooltip");
-  const fips = String(d.id).padStart(2, "0");
-  const r = _scoresByFips.get(fips);
-  const rank = _ranksByFips.get(fips);
-  const name = d.properties.name;
+function _applyMapStyle(style) {
+  _currentStyle = style;
+  if (_tileLayer) {
+    _map.removeLayer(_tileLayer);
+    _tileLayer = null;
+  }
+  if (style === "outline") return;  // no tile layer
 
-  // Header
+  let provider;
+  if (style === "satellite") {
+    provider = TILE_PROVIDERS.satellite;
+  } else {
+    // street — flip with theme
+    const dark = document.documentElement.dataset.theme === "dark";
+    provider = dark ? TILE_PROVIDERS.street_dark : TILE_PROVIDERS.street_light;
+  }
+  _tileLayer = L.tileLayer(provider.url, {
+    attribution: provider.attribution,
+    subdomains: provider.subdomains || "abc",
+    maxZoom: provider.maxZoom || 19,
+    r: window.devicePixelRatio > 1 ? "@2x" : "",
+  });
+  _tileLayer.addTo(_map);
+  _tileLayer.bringToBack();
+}
+
+function _styleState(feature) {
+  const fips = String(feature.id).padStart(2, "0");
+  const stateName = feature.properties.name;
+  const r = _scoresByName.get(stateName);
+  const tile = _currentStyle !== "outline";
+
+  let fill = "#dddddd";
+  if (r && r.factors > 0) {
+    fill = scale(r.score) || fill;
+  } else {
+    fill = tile ? "rgba(150,150,150,0.15)" : "#e7e7ec";
+  }
+
+  const isFocused = _focusedState === stateName;
+  return {
+    fillColor: fill,
+    color: isFocused ? (tile ? "#ffffff" : "#1a1a1f") : (tile ? "#ffffff" : "#ffffff"),
+    weight: isFocused ? 3 : 1,
+    opacity: 1,
+    fillOpacity: tile ? 0.55 : 0.85,
+  };
+}
+
+function _hoverState(e, feature) {
+  const layer = e.target;
+  layer.setStyle({ weight: 2.4, color: "#1a1a1f" });
+  layer.bringToFront();
+  _showTip(e.originalEvent, feature);
+}
+
+function _showTip(event, feature) {
+  const tip = document.getElementById("map-tooltip");
+  const name = feature.properties.name;
+  const r = _scoresByName.get(name);
+  const rank = _ranksByName.get(name);
+
   let html = `<div class="tip-state"><span>${name}</span>`;
   if (r && r.factors > 0) {
-    html += `<span class="tip-rank">#${rank} · ${(r.score * 100).toFixed(1)}</span>`;
+    html += `<span class="tip-rank">#${rank} &middot; ${(r.score * 100).toFixed(1)}</span>`;
   }
   html += `</div>`;
 
-  // Full per-module breakdown (if DB context is set).
   if (_db) {
     const rows = getStateBreakdown(_db, name);
     const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
@@ -115,20 +188,17 @@ function showTip(event, d) {
 
     if (enabled.length) {
       html += `<div class="tip-section">Active factors (${enabled.length})</div>`;
-      // Sort by normalized score desc — show strengths first.
       enabled.sort((a, b) => b.normalized - a.normalized);
       for (const row of enabled) {
-        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_formatValue(row)}</span></div>`;
+        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
       }
     }
     if (disabled.length) {
       html += `<div class="tip-section">Disabled (${disabled.length})</div>`;
       for (const row of disabled) {
-        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v" style="opacity:0.55">${_formatValue(row)}</span></div>`;
+        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v" style="opacity:0.55">${_fmtValue(row)}</span></div>`;
       }
     }
-  } else if (!(r && r.factors > 0)) {
-    html += `<div class="tip-row"><span class="k">No active factors</span></div>`;
   }
 
   tip.innerHTML = html;
@@ -136,24 +206,18 @@ function showTip(event, d) {
   _placeTip(tip, event);
 }
 
-function _formatValue(row) {
+function _fmtValue(row) {
   const v = row.value;
   const u = row.unit || "";
-  let formatted;
-  if (Math.abs(v) >= 10000) {
-    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  } else if (Math.abs(v) >= 100) {
-    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 1 });
-  } else if (Math.abs(v) >= 1) {
-    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  } else {
-    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 3 });
-  }
-  return u ? `${formatted} ${u}` : formatted;
+  let s;
+  if (Math.abs(v) >= 10000) s = v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  else if (Math.abs(v) >= 100) s = v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  else if (Math.abs(v) >= 1) s = v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  else s = v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return u ? `${s} ${u}` : s;
 }
 
 function _placeTip(tip, event) {
-  // position: fixed → coords are viewport-relative.
   const PAD = 14;
   const w = tip.offsetWidth || 280;
   const h = tip.offsetHeight || 200;
@@ -166,6 +230,73 @@ function _placeTip(tip, event) {
   tip.style.top = `${y}px`;
 }
 
-function hideTip() {
+function _hideTip() {
   document.getElementById("map-tooltip").classList.remove("visible");
 }
+
+// Set new scores for the choropleth.
+export function updateMap(ranking) {
+  _scoresByName = new Map();
+  _ranksByName = new Map();
+  ranking.forEach((r, idx) => {
+    _scoresByName.set(r.state, r);
+    _ranksByName.set(r.state, idx + 1);
+  });
+  if (_stateLayer) _stateLayer.setStyle(_styleState);
+}
+
+function _focusState(feature, layer) {
+  const name = feature.properties.name;
+  if (_focusedState === name) {
+    _clearFocus();
+    return;
+  }
+  _focusedState = name;
+  _map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+  _stateLayer.setStyle(_styleState);
+  _hideTip();
+  _updateFocusChip();
+  if (_onFocus) _onFocus(name);
+}
+
+function _clearFocus() {
+  _focusedState = null;
+  _map.fitBounds(CONTINENTAL_BOUNDS);
+  if (_stateLayer) _stateLayer.setStyle(_styleState);
+  _updateFocusChip();
+  if (_onFocus) _onFocus(null);
+}
+
+function _updateFocusChip() {
+  const chip = document.getElementById("focus-chip");
+  const name = document.getElementById("focus-state-name");
+  if (_focusedState) {
+    name.textContent = _focusedState;
+    chip.classList.remove("hidden");
+  } else {
+    chip.classList.add("hidden");
+  }
+}
+
+function _initFocusChip() {
+  document.getElementById("focus-clear").addEventListener("click", () => _clearFocus());
+}
+
+function _initStyleToggle() {
+  const buttons = document.querySelectorAll(".map-style-toggle .style-btn");
+  buttons.forEach((b) => {
+    b.addEventListener("click", () => {
+      buttons.forEach((bb) => bb.classList.remove("active"));
+      b.classList.add("active");
+      _applyMapStyle(b.dataset.style);
+      if (_stateLayer) _stateLayer.setStyle(_styleState);
+    });
+  });
+}
+
+function _renderLegend() {
+  const legend = document.getElementById("map-legend");
+  legend.innerHTML = `<span>worse</span><span class="legend-bar"></span><span>better</span>`;
+}
+
+export function getFocusedState() { return _focusedState; }

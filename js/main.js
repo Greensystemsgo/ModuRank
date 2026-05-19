@@ -9,7 +9,7 @@ import {
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
-import { renderMap, updateMap, setBreakdownContext } from "./map.js";
+import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
 initTheme();
@@ -66,6 +66,11 @@ const errBox = (msg) => {
     };
 
     onWeightsChange(refresh);
+    onFocusChange((stateName) => {
+      // Future: when stateName !== null, swap ranking to cities-in-state.
+      // For now, refresh just re-renders state ranking with focus chip on.
+      refresh();
+    });
     document.getElementById("reset-weights").addEventListener("click", () => {
       resetWeights();
       refresh();
