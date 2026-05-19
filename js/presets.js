@@ -220,6 +220,197 @@ export const PRESETS = {
     },
   },
 
+  "Texas Lifer": {
+    description: "No income tax, jobs, BBQ, room to roam. Yes there's a reason to live here.",
+    weights: {
+      income_tax: 100,           // TX = 0
+      gun_friendliness: 80,
+      cost_of_living: 70,
+      home_value: 60,
+      median_sale_price: 50,
+      price_per_sqft: 50,
+      median_income: 50,
+      unemployment: 60,
+      sunshine_hours: 60,
+      avg_temperature: 50,
+      population: 40,             // big states with stuff to do
+      broadband_pct: 40,
+      sales_tax: 30,
+      disasters: 20,
+      property_tax: 30,           // TX has high property tax — not a focus
+      bachelors_pct: 20,
+      life_expectancy: 20,
+      humidity: 0,
+      relative_humidity: 0,
+      precipitation: 0,
+      uv_index: 0,
+      uninsured_pct: 0,
+      public_lands: 30,
+      commute_time: 0,
+      violent_crime: 30,
+    },
+  },
+
+  "California Dreamer": {
+    description: "Mild climate, sunshine, jobs, beaches. You'll pay for the privilege.",
+    weights: {
+      sunshine_hours: 90,
+      avg_temperature: 70,
+      feels_like_temperature: 70,
+      relative_humidity: 60,      // CA is dry-ish, lower humidity helps it
+      humidity: 60,
+      bachelors_pct: 60,
+      median_income: 60,
+      public_lands: 50,
+      uninsured_pct: 40,
+      life_expectancy: 50,
+      population: 40,
+      broadband_pct: 40,
+      cost_of_living: 0,          // we know it's expensive — don't penalize
+      home_value: 0,
+      median_rent: 0,
+      median_sale_price: 0,
+      price_per_sqft: 0,
+      property_tax: 0,
+      income_tax: 0,
+      sales_tax: 0,
+      disasters: 30,
+      violent_crime: 30,
+      gun_friendliness: 0,
+      uv_index: 0,
+    },
+  },
+
+  "Florida Snowbird": {
+    description: "Warm year-round, no income tax, beaches. Bring hurricane insurance.",
+    weights: {
+      avg_temperature: 100,
+      feels_like_temperature: 80,
+      sunshine_hours: 80,
+      income_tax: 100,            // FL = 0
+      cost_of_living: 50,
+      median_income: 0,           // retirees often don't care
+      unemployment: 0,
+      home_value: 40,
+      home_insurance: 0,          // FL high — but it's the trade-off
+      precipitation: 30,
+      relative_humidity: 0,       // FL is humid — accept it
+      humidity: 0,
+      uv_index: 0,
+      disasters: 0,               // FL has hurricanes — known trade-off
+      life_expectancy: 40,
+      property_tax: 50,
+      sales_tax: 40,
+      violent_crime: 40,
+      median_age: 60,             // retiree-heavy
+    },
+  },
+
+  "Mountain Time": {
+    description: "Public lands, low density, outdoor freedom. CO, WY, MT, ID, NM territory.",
+    weights: {
+      public_lands: 100,
+      population_density: 90,     // lower = better, rural
+      sunshine_hours: 70,
+      gun_friendliness: 50,
+      uv_index: 40,               // higher = more UV, mountain states have it
+      avg_temperature: 30,
+      relative_humidity: 70,      // mountain west = dry
+      humidity: 70,
+      home_value: 40,
+      cost_of_living: 50,
+      median_rent: 30,
+      income_tax: 40,
+      population: 0,              // small populations
+      bachelors_pct: 30,
+      disasters: 50,
+      violent_crime: 30,
+      precipitation: 40,
+    },
+  },
+
+  "Pacific Northwest": {
+    description: "Tech jobs (Seattle/Portland), no WA income tax, outdoors, drizzly cool.",
+    weights: {
+      median_income: 80,
+      bachelors_pct: 70,
+      unemployment: 60,
+      income_tax: 70,             // WA = 0
+      broadband_pct: 80,
+      public_lands: 60,
+      avg_temperature: 0,         // cool — don't punish it
+      sunshine_hours: 0,
+      precipitation: 0,           // wet — known feature, not bug
+      uv_index: 30,
+      relative_humidity: 0,
+      humidity: 0,
+      home_value: 30,
+      median_rent: 30,
+      cost_of_living: 30,
+      violent_crime: 50,
+      life_expectancy: 50,
+      uninsured_pct: 50,
+      gun_friendliness: 0,
+    },
+  },
+
+  "New England Charm": {
+    description: "Education, low crime, long lives, fall foliage. Pay the property tax.",
+    weights: {
+      bachelors_pct: 90,
+      life_expectancy: 80,
+      violent_crime: 90,
+      uninsured_pct: 80,
+      median_income: 60,
+      public_lands: 40,
+      precipitation: 30,
+      sunshine_hours: 30,
+      avg_temperature: 0,
+      cost_of_living: 0,
+      home_value: 0,
+      median_rent: 0,
+      property_tax: 0,            // NE has high property tax — accept it
+      income_tax: 0,
+      disasters: 60,
+      humidity: 30,
+      relative_humidity: 30,
+      gun_friendliness: 0,
+      uv_index: 30,
+      broadband_pct: 60,
+      commute_time: 40,
+    },
+  },
+
+  "Midwest Affordability": {
+    description: "Cheap homes, cheap rent, low crime, sane commutes. Iowa nice.",
+    weights: {
+      cost_of_living: 90,
+      home_value: 90,
+      median_rent: 90,
+      price_per_sqft: 80,
+      median_sale_price: 80,
+      home_insurance: 70,
+      violent_crime: 70,
+      disasters: 60,
+      commute_time: 70,
+      property_tax: 50,
+      unemployment: 50,
+      median_income: 30,
+      population_density: 50,
+      bachelors_pct: 30,
+      life_expectancy: 40,
+      avg_temperature: 0,
+      sunshine_hours: 0,
+      humidity: 0,
+      relative_humidity: 0,
+      precipitation: 0,
+      uv_index: 0,
+      uninsured_pct: 60,
+      gun_friendliness: 0,
+      public_lands: 0,
+    },
+  },
+
   "First-Time Buyer": {
     description: "Cheap entry-level homes, decent jobs, low closing-cost shock.",
     weights: {
