@@ -2,7 +2,7 @@
 // State choropleth via GeoJSON layer; click a state to focus on it (zoom in,
 // fire onFocus callback). Hover for full per-state breakdown tooltip.
 
-import { getStateBreakdown, loadCitiesDatabase, getCitiesInState } from "./data.js";
+import { getStateBreakdown, loadCitiesDatabase, computeCityRanking, getCityBreakdown } from "./data.js";
 
 let _map = null;
 let _tileLayer = null;
@@ -18,6 +18,7 @@ let _onFocus = null;
 let _focusedState = null;
 let _citiesDbUrl = null;
 let _citiesDb = null;
+let _activeWeights = [];
 
 // Wide enough to fit continental US + Hawaii in the default view.
 // Alaska remains reachable by panning north. (Real-geography Leaflet
@@ -69,6 +70,9 @@ const scale = (t) => {
 export function setBreakdownContext(db, weights) {
   _db = db;
   _weightsByModule = new Map(weights.map((w) => [w.id, w.weight]));
+  _activeWeights = weights;
+  // If a state is currently focused, re-render its cities with new scores.
+  if (_focusedState) _renderCitiesForFocus(_focusedState);
 }
 
 export function onFocusChange(fn) {
@@ -302,7 +306,7 @@ async function _renderCitiesForFocus(stateName) {
   }
   if (!_citiesDbUrl) return;
 
-  // First focus triggers the lazy 13 MB cities-DB fetch.
+  // First focus triggers the lazy cities-DB fetch (~29 MB, one-time).
   if (!_citiesDb) {
     _showLoading();
     try {
@@ -315,39 +319,82 @@ async function _renderCitiesForFocus(stateName) {
     _hideLoading();
   }
 
-  const cities = getCitiesInState(_citiesDb, stateName);
+  // Score each city with the current weights.
+  const cities = computeCityRanking(_citiesDb, _activeWeights, stateName);
   if (!cities.length) return;
 
-  // Sort by population so the smallest cities draw first (largest on top).
+  // Size by population (sqrt scale).
   const maxPop = Math.max(...cities.map((c) => c.population || 1));
-  const minRadius = 2.5;
-  const maxRadius = 9;
+  const minR = 3, maxR = 11;
 
-  const markers = cities.map((c) => {
+  const tile = _currentStyle !== "outline";
+  const stroke = tile ? "#1a1a1f" : "#ffffff";
+  const defaultFill = tile ? "rgba(150,150,150,0.6)" : "#bbbbbb";
+
+  // Sort: unscored (no data) draw first, scored on top.
+  const sorted = [...cities].sort((a, b) => {
+    if (a.score == null && b.score != null) return -1;
+    if (a.score != null && b.score == null) return 1;
+    return (a.score || 0) - (b.score || 0);
+  });
+
+  const markers = sorted.map((c) => {
     const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
-    const radius = minRadius + (maxRadius - minRadius) * t;
+    const radius = minR + (maxR - minR) * t;
+    const fill = c.score != null ? scale(c.score) : defaultFill;
     const marker = L.circleMarker([c.latitude, c.longitude], {
       radius,
-      color: "#1a1a1f",
-      weight: 1,
-      fillColor: "var(--accent)",
-      fillOpacity: 0.85,
-      pane: "markerPane",
+      color: stroke,
+      weight: 0.8,
+      fillColor: fill,
+      fillOpacity: 0.9,
     });
-    marker.bindTooltip(
-      `<strong>${c.name}, ${c.state}</strong><br/>` +
-      (c.population ? `pop ${c.population.toLocaleString()}` : "<em>population unknown</em>"),
-      { direction: "top", offset: [0, -4], sticky: true, className: "city-tooltip" }
-    );
-    // Override fill via direct DOM tweak since L doesn't read CSS vars
+    marker.on("mouseover", (e) => _showCityTip(e.originalEvent, c));
+    marker.on("mousemove", (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent));
+    marker.on("mouseout", _hideTip);
     return marker;
   });
 
-  _cityLayer = L.layerGroup(markers, { pane: "markerPane" }).addTo(_map);
+  _cityLayer = L.layerGroup(markers).addTo(_map);
+}
 
-  // Compute the actual accent color from CSS to apply to markers.
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2f6df6";
-  markers.forEach((m) => m.setStyle({ fillColor: accent, color: accent }));
+function _showCityTip(event, city) {
+  const tip = document.getElementById("map-tooltip");
+  let html = `<div class="tip-state"><span>${city.name}</span>`;
+  if (city.score != null) {
+    html += `<span class="tip-rank">${(city.score * 100).toFixed(1)}</span>`;
+  }
+  html += `</div>`;
+
+  if (city.population) {
+    html += `<div class="tip-row"><span class="k">Population</span><span class="v">${city.population.toLocaleString()}</span></div>`;
+  }
+
+  if (_citiesDb && city.id) {
+    const rows = getCityBreakdown(_citiesDb, city.id);
+    const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
+    if (enabled.length) {
+      const sorted = [...enabled].sort((a, b) => b.normalized - a.normalized);
+      const strengths = sorted.slice(0, 3);
+      const weaknesses = sorted.slice(-3).reverse();
+      html += `<div class="tip-section">Strengths</div>`;
+      for (const row of strengths) {
+        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
+      }
+      if (enabled.length > 3) {
+        html += `<div class="tip-section">Weaknesses</div>`;
+        for (const row of weaknesses) {
+          html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
+        }
+      }
+    } else if (rows.length === 0) {
+      html += `<div class="tip-row"><span class="k" style="opacity:0.6">No Census data for this place</span></div>`;
+    }
+  }
+
+  tip.innerHTML = html;
+  tip.classList.add("visible");
+  _placeTip(tip, event);
 }
 
 function _showLoading() {

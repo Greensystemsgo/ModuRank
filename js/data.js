@@ -28,9 +28,73 @@ export function loadCitiesDatabase(dbUrl) {
 
 export function getCitiesInState(citiesDb, stateName) {
   const stmt = citiesDb.prepare(
-    "SELECT name, latitude, longitude, population FROM city WHERE state = :state ORDER BY population DESC"
+    "SELECT id, name, latitude, longitude, population FROM city WHERE state = :state ORDER BY population DESC"
   );
   stmt.bind({ ":state": stateName });
+  const out = [];
+  while (stmt.step()) out.push(stmt.getAsObject());
+  stmt.free();
+  return out;
+}
+
+// Compute per-city weighted score for all cities in a given state, using
+// whichever modules in `weights` actually have city-level data.
+export function computeCityRanking(citiesDb, weights, stateName) {
+  const active = weights.filter((w) => w.weight > 0);
+  if (active.length === 0) {
+    // No active factors — return all cities with score 0.
+    return getCitiesInState(citiesDb, stateName).map((c) => ({
+      id: c.id, name: c.name, latitude: c.latitude, longitude: c.longitude,
+      population: c.population, score: null, factors: 0,
+    }));
+  }
+
+  const weightJson = JSON.stringify(
+    Object.fromEntries(active.map((w) => [w.id, w.weight])),
+  );
+
+  const stmt = citiesDb.prepare(`
+    WITH w AS (
+      SELECT key AS module_id, CAST(value AS REAL) AS weight
+      FROM json_each(:weights)
+    ),
+    contrib AS (
+      SELECT cr.city_id,
+             SUM(cr.normalized * w.weight) AS num,
+             SUM(w.weight)                 AS den,
+             COUNT(*)                      AS factors
+      FROM city_rating cr
+      JOIN w ON w.module_id = cr.module_id
+      GROUP BY cr.city_id
+    )
+    SELECT c.id, c.name, c.latitude, c.longitude, c.population,
+           CASE WHEN co.den > 0 THEN co.num / co.den ELSE NULL END AS score,
+           COALESCE(co.factors, 0) AS factors
+    FROM city c
+    LEFT JOIN contrib co ON co.city_id = c.id
+    WHERE c.state = :state
+    ORDER BY c.population DESC
+  `);
+  stmt.bind({ ":weights": weightJson, ":state": stateName });
+  const out = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    out.push(row);
+  }
+  stmt.free();
+  return out;
+}
+
+export function getCityBreakdown(citiesDb, cityId) {
+  const stmt = citiesDb.prepare(`
+    SELECT m.id AS module_id, m.label, m.unit, m.lower_is_better,
+           cr.value, cr.normalized
+    FROM city_rating cr
+    JOIN module m ON m.id = cr.module_id
+    WHERE cr.city_id = :id
+    ORDER BY m.label
+  `);
+  stmt.bind({ ":id": cityId });
   const out = [];
   while (stmt.step()) out.push(stmt.getAsObject());
   stmt.free();

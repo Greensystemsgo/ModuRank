@@ -54,6 +54,7 @@ from fetchers import (  # noqa: E402
     bls_laus,
     cdc_life_expectancy,
     census_acs,
+    census_acs_places,
     fbi_crime,
     geonames_cities,
     open_meteo,
@@ -423,12 +424,21 @@ def write_sqlite(modules: list[dict]) -> None:
         conn.close()
 
 
+def _normalize_city(values: dict[tuple[str, str], float], lower_is_better: bool) -> dict[tuple[str, str], float]:
+    if not values:
+        return {}
+    arr = list(values.values())
+    lo, hi = min(arr), max(arr)
+    spread = hi - lo or 1.0
+    if lower_is_better:
+        return {k: (hi - v) / spread for k, v in values.items()}
+    return {k: (v - lo) / spread for k, v in values.items()}
+
+
 def write_cities_sqlite() -> None:
-    """Separate SQLite file containing just city geometry/metadata.
+    """Separate SQLite file containing city geometry + per-city ratings.
 
     Lazy-loaded by the frontend the first time the user focuses a state.
-    Per-city rating data will live here too once the per-city fetchers
-    land.
     """
     if not os.environ.get("MODURANK_LOAD_CITIES") == "1":
         print("\nSkipping cities DB (set MODURANK_LOAD_CITIES=1 to enable)")
@@ -436,11 +446,22 @@ def write_cities_sqlite() -> None:
     try:
         print("\nLoading cities from GeoNames...")
         cities = geonames_cities.fetch_cities()
-        print(f"  {len(cities):,} cities")
+        print(f"  {len(cities):,} cities from GeoNames")
     except Exception:
-        print("  [WARN] city fetch failed")
+        print("  [WARN] geonames fetch failed")
         traceback.print_exc()
         return
+
+    # Pull per-city ACS modules (income, rent, home value, pop, education).
+    print("\nFetching per-city Census ACS modules...")
+    city_modules = []
+    try:
+        city_modules = census_acs_places.fetch_city_modules()
+        for m in city_modules:
+            print(f"  [Census places] {m['id']} ({len(m['data']):,} cities)")
+    except Exception:
+        print("  [WARN] Census places fetch failed")
+        traceback.print_exc()
 
     if CITIES_DB_PATH.exists():
         CITIES_DB_PATH.unlink()
@@ -458,11 +479,56 @@ def write_cities_sqlite() -> None:
             );
             CREATE INDEX city_by_state ON city(state);
             CREATE INDEX city_by_name  ON city(name);
+            CREATE UNIQUE INDEX city_unique ON city(state, name);
+
+            CREATE TABLE module (
+                id              TEXT PRIMARY KEY,
+                label           TEXT NOT NULL,
+                description     TEXT,
+                unit            TEXT,
+                lower_is_better INTEGER NOT NULL
+            );
+            CREATE TABLE city_rating (
+                module_id  TEXT NOT NULL REFERENCES module(id),
+                city_id    INTEGER NOT NULL REFERENCES city(id),
+                value      REAL NOT NULL,
+                normalized REAL NOT NULL,
+                PRIMARY KEY (module_id, city_id)
+            );
+            CREATE INDEX city_rating_by_module ON city_rating(module_id);
+            CREATE INDEX city_rating_by_city   ON city_rating(city_id);
         """)
         cur.executemany(
             "INSERT INTO city (state, name, latitude, longitude, population) VALUES (?, ?, ?, ?, ?)",
             [(c["state"], c["name"], c["latitude"], c["longitude"], c["population"]) for c in cities],
         )
+
+        # Build (state, name) → city_id lookup. Census place names usually
+        # match geonames exactly; mismatches are skipped silently.
+        city_id_lookup = {
+            (row[0], row[1]): row[2]
+            for row in cur.execute("SELECT state, name, id FROM city")
+        }
+
+        for m in city_modules:
+            cur.execute(
+                """INSERT INTO module (id, label, description, unit, lower_is_better)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (m["id"], m["label"], m["description"], m["unit"], 1 if m["lower_is_better"] else 0),
+            )
+            norm = _normalize_city(m["data"], m["lower_is_better"])
+            inserted = 0
+            for (state, name), raw_val in m["data"].items():
+                city_id = city_id_lookup.get((state, name))
+                if city_id is None:
+                    continue
+                cur.execute(
+                    "INSERT INTO city_rating (module_id, city_id, value, normalized) VALUES (?, ?, ?, ?)",
+                    (m["id"], city_id, raw_val, norm[(state, name)]),
+                )
+                inserted += 1
+            print(f"  [city_rating] {m['id']}: {inserted:,} city rows inserted")
+
         conn.commit()
         cur.execute("VACUUM")
         conn.commit()
