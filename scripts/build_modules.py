@@ -13,10 +13,31 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sqlite3
+import sys
+import traceback
 from pathlib import Path
 
 import openpyxl
+
+
+def _load_dotenv() -> None:
+    """Tiny .env loader (no extra dep). Loads only if env var not already set."""
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+_load_dotenv()
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = Path("C:/Users/NCorriveau/dev/scrapewiki")
@@ -25,6 +46,17 @@ MODULES_DIR = DATA_DIR / "modules"
 DB_PATH = DATA_DIR / "moduRank.sqlite"
 
 MODULES_DIR.mkdir(parents=True, exist_ok=True)
+
+# Make scripts/fetchers/ importable.
+sys.path.insert(0, str(Path(__file__).parent))
+from fetchers import (  # noqa: E402
+    bls_laus,
+    census_acs,
+    fbi_crime,
+    open_meteo,
+    openweather_air,
+    redfin,
+)
 
 # State name -> 2-digit FIPS code (matches us-atlas state IDs).
 STATE_FIPS: dict[str, str] = {
@@ -241,14 +273,46 @@ def build_modules() -> list[dict]:
     ]
 
 
+def build_api_modules() -> list[dict]:
+    """Pull modules from live APIs (cached after first run)."""
+    fips_to_name = {fips: name for name, fips in STATE_FIPS.items()}
+    api_modules: list[dict] = []
+    for label, fn in [
+        ("Census ACS",   lambda: census_acs.fetch_modules(fips_to_name)),
+        ("BLS LAUS",     lambda: bls_laus.fetch_modules(fips_to_name)),
+        ("Open-Meteo",   lambda: open_meteo.fetch_modules(fips_to_name)),
+        ("OpenWeather",  lambda: openweather_air.fetch_modules(fips_to_name)),
+        ("Redfin",       lambda: redfin.fetch_modules(fips_to_name)),
+        ("FBI CDE",      lambda: fbi_crime.fetch_modules(fips_to_name)),
+    ]:
+        try:
+            mods = fn()
+            for m in mods:
+                print(f"  [{label}] {m['id']} ({len(m['data'])} states)")
+            api_modules.extend(mods)
+        except Exception:
+            print(f"  [{label}] FAILED — skipping")
+            traceback.print_exc()
+    return api_modules
+
+
 # ---- writers ------------------------------------------------------------
 
 def write_json(modules: list[dict]) -> None:
+    written: list[str] = []
     for m in modules:
+        if not m.get("data"):
+            # Drop any stale per-module file for an empty module so the
+            # modules/ directory stays in sync with the live module set.
+            path = MODULES_DIR / f"{m['id']}.json"
+            if path.exists():
+                path.unlink()
+            continue
         path = MODULES_DIR / f"{m['id']}.json"
         path.write_text(json.dumps(m, indent=2), encoding="utf-8")
+        written.append(m["id"])
     (DATA_DIR / "manifest.json").write_text(
-        json.dumps({"modules": [m["id"] for m in modules]}, indent=2),
+        json.dumps({"modules": written}, indent=2),
         encoding="utf-8",
     )
 
@@ -304,6 +368,10 @@ def write_sqlite(modules: list[dict]) -> None:
         }
 
         for m in modules:
+            if not m.get("data"):
+                # Skip modules with zero ratings (e.g. an API failed entirely);
+                # adding them would clutter the UI with a useless slider.
+                continue
             cur.execute(
                 """INSERT INTO module
                    (id, label, description, unit, source, methodology, lower_is_better)
@@ -328,11 +396,22 @@ def write_sqlite(modules: list[dict]) -> None:
 
 
 def main() -> None:
+    print("Static-source modules:")
     modules = build_modules()
+    for m in modules:
+        print(f"  [static]   {m['id']} ({len(m['data'])} states)")
+    print("\nAPI-sourced modules:")
+    modules.extend(build_api_modules())
+    # De-dup by id, last-write-wins.
+    by_id: dict[str, dict] = {}
+    for m in modules:
+        by_id[m["id"]] = m
+    modules = list(by_id.values())
+
     write_json(modules)
     write_sqlite(modules)
     total_ratings = sum(len(m["data"]) for m in modules)
-    print(f"Built {len(modules)} modules, {total_ratings} ratings")
+    print(f"\nBuilt {len(modules)} modules, {total_ratings} ratings")
     print(f"  {DB_PATH.relative_to(ROOT)}  ({DB_PATH.stat().st_size // 1024} KB)")
 
 

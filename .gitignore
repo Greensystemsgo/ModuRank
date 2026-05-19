@@ -6,3 +6,9 @@ __pycache__/
 .idea/
 node_modules/
 .claude/
+.env
+.env.local
+
+# Raw API response cache — rebuilt by scripts/build_modules.py.
+# Don't commit: some files (Redfin TSV) are >20MB and re-fetching is cheap.
+data/raw/

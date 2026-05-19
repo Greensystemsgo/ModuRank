@@ -202,12 +202,21 @@ html, body {
 .slider-row .label-line {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+}
+.slider-row .label-line .label-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 .slider-row .label-line .label {
   font-weight: 500;
   font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .slider-row .label-line .weight {
   font-variant-numeric: tabular-nums;
@@ -219,6 +228,35 @@ html, body {
   font-size: 12px;
   margin: 0;
 }
+
+.toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.toggle.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.toggle.off {
+  background: transparent;
+  color: var(--text-muted);
+}
+.toggle:hover { filter: brightness(1.05); }
+
+.slider-row.off .label { color: var(--text-muted); text-decoration: line-through; }
+.slider-row.off .description { opacity: 0.55; }
+.slider-row.off input[type="range"] { opacity: 0.4; }
 
 input[type="range"] {
   width: 100%;

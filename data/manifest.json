@@ -8,6 +8,19 @@
     "humidity",
     "sales_tax",
     "income_tax",
-    "gun_friendliness"
+    "gun_friendliness",
+    "median_income",
+    "home_value",
+    "median_rent",
+    "unemployment",
+    "avg_temperature",
+    "feels_like_temperature",
+    "relative_humidity",
+    "sunshine_hours",
+    "precipitation",
+    "median_sale_price",
+    "days_on_market",
+    "price_per_sqft",
+    "housing_inventory"
   ]
 }
