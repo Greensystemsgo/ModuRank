@@ -1,5 +1,6 @@
 {
   "id": "public_lands",
+  "category": "Outdoors",
   "label": "Public Lands",
   "description": "Percent of state area owned by federal + state government.",
   "unit": "%",

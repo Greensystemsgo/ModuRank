@@ -3,6 +3,7 @@
   "label": "Housing Inventory",
   "description": "Number of homes for sale (Redfin, period ending 2026-03-31). Higher = more selection for buyers.",
   "unit": "homes",
+  "category": "Housing",
   "source": "Redfin Data Center \u2014 State Market Tracker",
   "lower_is_better": false,
   "methodology": null,

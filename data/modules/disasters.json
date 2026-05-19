@@ -1,5 +1,6 @@
 {
   "id": "disasters",
+  "category": "Safety & Risk",
   "label": "Natural Disasters",
   "description": "Average FEMA-declared disasters per year (1980-2025).",
   "unit": "disasters/year",

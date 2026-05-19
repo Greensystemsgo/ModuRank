@@ -3,6 +3,7 @@
   "label": "Days on Market",
   "description": "Median days a home spends on market before sale (Redfin, period ending 2026-03-31). Higher = slower market (more buyer leverage).",
   "unit": "days",
+  "category": "Housing",
   "source": "Redfin Data Center \u2014 State Market Tracker",
   "lower_is_better": false,
   "methodology": null,

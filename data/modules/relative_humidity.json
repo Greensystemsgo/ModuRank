@@ -3,6 +3,7 @@
   "label": "Relative Humidity",
   "description": "Average relative humidity in 2024 (hourly mean). Lower = drier (more comfortable in hot climates).",
   "unit": "%",
+  "category": "Climate",
   "source": "Open-Meteo Archive API",
   "lower_is_better": true,
   "methodology": null,

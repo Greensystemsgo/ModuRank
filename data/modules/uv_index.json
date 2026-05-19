@@ -1,5 +1,6 @@
 {
   "id": "uv_index",
+  "category": "Climate",
   "label": "UV Exposure",
   "description": "Annual UV exposure. Higher = more UV.",
   "unit": "J/m^2",

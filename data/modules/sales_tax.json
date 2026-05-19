@@ -1,5 +1,6 @@
 {
   "id": "sales_tax",
+  "category": "Cost & Taxes",
   "label": "Sales Tax",
   "description": "Combined state + average local sales tax rate.",
   "unit": "rate",

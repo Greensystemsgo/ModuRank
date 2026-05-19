@@ -48,6 +48,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
 
     return [{
         "id": "unemployment",
+        "category": "Economy",
         "label": "Unemployment Rate",
         "description": (
             f"State unemployment rate, {period_label or 'latest available'} "

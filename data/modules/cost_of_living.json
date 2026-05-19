@@ -1,5 +1,6 @@
 {
   "id": "cost_of_living",
+  "category": "Cost & Taxes",
   "label": "Cost of Living",
   "description": "Cost of living index (US average ~100). Lower = cheaper.",
   "unit": "index",

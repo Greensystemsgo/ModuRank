@@ -1,5 +1,6 @@
 {
   "id": "home_value",
+  "category": "Housing",
   "label": "Median Home Value",
   "description": "Median value of owner-occupied homes, USD (ACS 5-year 2023). Lower = cheaper to buy in.",
   "unit": "USD",

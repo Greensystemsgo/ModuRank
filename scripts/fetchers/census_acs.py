@@ -16,6 +16,7 @@ YEAR = 2023
 VARIABLES = {
     "median_income": {
         "var": "B19013_001E",
+        "category": "Economy",
         "label": "Median Household Income",
         "description": f"Median household income, USD (ACS 5-year {YEAR}). Higher = wealthier.",
         "unit": "USD/year",
@@ -23,6 +24,7 @@ VARIABLES = {
     },
     "home_value": {
         "var": "B25077_001E",
+        "category": "Housing",
         "label": "Median Home Value",
         "description": f"Median value of owner-occupied homes, USD (ACS 5-year {YEAR}). Lower = cheaper to buy in.",
         "unit": "USD",
@@ -30,6 +32,7 @@ VARIABLES = {
     },
     "median_rent": {
         "var": "B25064_001E",
+        "category": "Housing",
         "label": "Median Gross Rent",
         "description": f"Median gross monthly rent, USD (ACS 5-year {YEAR}). Lower = cheaper.",
         "unit": "USD/month",
@@ -75,6 +78,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
 
         modules.append({
             "id": mod_id,
+            "category": meta["category"],
             "label": meta["label"],
             "description": meta["description"],
             "unit": meta["unit"],

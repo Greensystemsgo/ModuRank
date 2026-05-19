@@ -1,5 +1,6 @@
 {
   "id": "median_rent",
+  "category": "Housing",
   "label": "Median Gross Rent",
   "description": "Median gross monthly rent, USD (ACS 5-year 2023). Lower = cheaper.",
   "unit": "USD/month",

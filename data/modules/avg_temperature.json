@@ -3,6 +3,7 @@
   "label": "Average Temperature",
   "description": "Mean daily temperature in 2024 at each state capital (Open-Meteo historical archive). Higher = warmer.",
   "unit": "\u00b0F",
+  "category": "Climate",
   "source": "Open-Meteo Archive API (ERA5 reanalysis, capital city proxy)",
   "lower_is_better": false,
   "methodology": null,

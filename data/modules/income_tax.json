@@ -1,5 +1,6 @@
 {
   "id": "income_tax",
+  "category": "Cost & Taxes",
   "label": "Income Tax",
   "description": "Average state income tax rate.",
   "unit": "rate",

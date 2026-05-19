@@ -1,6 +1,7 @@
 {
   "id": "humidity",
-  "label": "Humidity",
+  "category": "Climate",
+  "label": "Humidity (annual avg)",
   "description": "Average relative humidity (fraction 0-1). Lower = drier.",
   "unit": "fraction",
   "source": "World Population Review - Most Humid States 2025",

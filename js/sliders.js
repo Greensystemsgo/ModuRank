@@ -8,14 +8,68 @@ let _listener = null;
 // Remembers the last non-zero weight so toggling back on restores it.
 const _lastWeight = new Map();
 
+const CATEGORY_ORDER = [
+  "Cost & Taxes",
+  "Housing",
+  "Economy",
+  "Climate",
+  "Safety & Risk",
+  "Outdoors",
+  "Politics & Culture",
+  "Other",
+];
+
+function _groupByCategory(modules) {
+  const groups = new Map();
+  for (const m of modules) {
+    const cat = m.category || "Other";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(m);
+  }
+  const ordered = [];
+  for (const cat of CATEGORY_ORDER) {
+    if (groups.has(cat)) ordered.push([cat, groups.get(cat)]);
+    groups.delete(cat);
+  }
+  for (const [cat, ms] of groups) ordered.push([cat, ms]);
+  return ordered;
+}
+
 export function renderSliders(modules) {
   _modules = modules;
   const container = document.getElementById("sliders");
   container.innerHTML = "";
 
-  for (const m of modules) {
-    _lastWeight.set(m.id, DEFAULT_WEIGHT);
+  for (const [cat, group] of _groupByCategory(modules)) {
+    const section = document.createElement("section");
+    section.className = "slider-group";
 
+    const header = document.createElement("h3");
+    header.className = "slider-group-header";
+    header.textContent = cat;
+    header.append(_categoryCount(group));
+    section.append(header);
+
+    const grid = document.createElement("div");
+    grid.className = "slider-group-grid";
+    section.append(grid);
+
+    for (const m of group) {
+      _lastWeight.set(m.id, DEFAULT_WEIGHT);
+      grid.append(_renderRow(m));
+    }
+    container.append(section);
+  }
+}
+
+function _categoryCount(group) {
+  const span = document.createElement("span");
+  span.className = "slider-group-count";
+  span.textContent = `${group.length}`;
+  return span;
+}
+
+function _renderRow(m) {
     const row = document.createElement("div");
     row.className = "slider-row";
     row.dataset.moduleId = m.id;
@@ -86,8 +140,7 @@ export function renderSliders(modules) {
     });
 
     row.append(labelLine, slider, desc);
-    container.append(row);
-  }
+    return row;
 }
 
 function _setEnabled(row, enabled) {
@@ -116,6 +169,18 @@ export function resetWeights() {
     row.querySelector("input").value = String(DEFAULT_WEIGHT);
     row.querySelector(".weight").textContent = String(DEFAULT_WEIGHT);
     _lastWeight.set(m.id, DEFAULT_WEIGHT);
+    _setEnabled(row, true);
+  }
+}
+
+export function randomizeWeights() {
+  for (const m of _modules) {
+    const row = document.querySelector(`.slider-row[data-module-id="${m.id}"]`);
+    if (!row) continue;
+    const v = 1 + Math.floor(Math.random() * 100);
+    row.querySelector("input").value = String(v);
+    row.querySelector(".weight").textContent = String(v);
+    _lastWeight.set(m.id, v);
     _setEnabled(row, true);
   }
 }

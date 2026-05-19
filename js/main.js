@@ -3,7 +3,7 @@
 
 import { initTheme } from "./theme.js";
 import { loadDatabase, listModules, computeRanking } from "./data.js";
-import { renderSliders, getWeights, onWeightsChange, resetWeights } from "./sliders.js";
+import { renderSliders, getWeights, onWeightsChange, resetWeights, randomizeWeights } from "./sliders.js";
 import { renderMap, updateMap } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
@@ -43,6 +43,10 @@ const errBox = (msg) => {
     onWeightsChange(refresh);
     document.getElementById("reset-weights").addEventListener("click", () => {
       resetWeights();
+      refresh();
+    });
+    document.getElementById("randomize-weights").addEventListener("click", () => {
+      randomizeWeights();
       refresh();
     });
 

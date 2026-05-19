@@ -191,6 +191,7 @@ def build_modules() -> list[dict]:
     return [
         {
             "id": "cost_of_living",
+            "category": "Cost & Taxes",
             "label": "Cost of Living",
             "description": "Cost of living index (US average ~100). Lower = cheaper.",
             "unit": "index",
@@ -201,6 +202,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "uv_index",
+            "category": "Climate",
             "label": "UV Exposure",
             "description": "Annual UV exposure. Higher = more UV.",
             "unit": "J/m^2",
@@ -211,6 +213,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "disasters",
+            "category": "Safety & Risk",
             "label": "Natural Disasters",
             "description": "Average FEMA-declared disasters per year (1980-2025).",
             "unit": "disasters/year",
@@ -221,6 +224,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "home_insurance",
+            "category": "Cost & Taxes",
             "label": "Homeowners Insurance",
             "description": "Average annual homeowners insurance premium (USD).",
             "unit": "USD/year",
@@ -231,6 +235,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "public_lands",
+            "category": "Outdoors",
             "label": "Public Lands",
             "description": "Percent of state area owned by federal + state government.",
             "unit": "%",
@@ -241,7 +246,8 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "humidity",
-            "label": "Humidity",
+            "category": "Climate",
+            "label": "Humidity (annual avg)",
             "description": "Average relative humidity (fraction 0-1). Lower = drier.",
             "unit": "fraction",
             "source": "World Population Review - Most Humid States 2025",
@@ -251,6 +257,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "sales_tax",
+            "category": "Cost & Taxes",
             "label": "Sales Tax",
             "description": "Combined state + average local sales tax rate.",
             "unit": "rate",
@@ -261,6 +268,7 @@ def build_modules() -> list[dict]:
         },
         {
             "id": "income_tax",
+            "category": "Cost & Taxes",
             "label": "Income Tax",
             "description": "Average state income tax rate.",
             "unit": "rate",
@@ -269,7 +277,7 @@ def build_modules() -> list[dict]:
             "methodology": None,
             "data": sheet_to_dict(wb["incometax"], 0, 3),
         },
-        build_gun_friendliness(),
+        {**build_gun_friendliness(), "category": "Politics & Culture"},
     ]
 
 
@@ -326,6 +334,7 @@ def write_sqlite(modules: list[dict]) -> None:
         cur.executescript("""
             CREATE TABLE module (
                 id              TEXT PRIMARY KEY,
+                category        TEXT NOT NULL DEFAULT 'Other',
                 label           TEXT NOT NULL,
                 description     TEXT,
                 unit            TEXT,
@@ -374,11 +383,12 @@ def write_sqlite(modules: list[dict]) -> None:
                 continue
             cur.execute(
                 """INSERT INTO module
-                   (id, label, description, unit, source, methodology, lower_is_better)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (id, category, label, description, unit, source, methodology, lower_is_better)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    m["id"], m["label"], m["description"], m.get("unit"),
-                    m.get("source"), m.get("methodology"),
+                    m["id"], m.get("category", "Other"), m["label"],
+                    m["description"], m.get("unit"), m.get("source"),
+                    m.get("methodology"),
                     1 if m["lower_is_better"] else 0,
                 ),
             )

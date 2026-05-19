@@ -1,5 +1,6 @@
 {
   "id": "unemployment",
+  "category": "Economy",
   "label": "Unemployment Rate",
   "description": "State unemployment rate, March 2026 (BLS LAUS, seasonally adjusted). Lower = stronger labor market.",
   "unit": "%",

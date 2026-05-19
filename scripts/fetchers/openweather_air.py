@@ -63,6 +63,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
 
     return [{
         "id": "air_quality_pm25",
+        "category": "Safety & Risk",
         "label": "Air Quality (PM2.5)",
         "description": (
             "30-day average PM2.5 concentration at state capital (µg/m³). "

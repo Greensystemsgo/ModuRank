@@ -3,6 +3,7 @@
   "label": "Feels-Like Temperature",
   "description": "Mean apparent (\"feels-like\") temperature in 2024 \u2014 combines temperature, humidity, wind, and radiation. Better comfort proxy than raw temp.",
   "unit": "\u00b0F",
+  "category": "Climate",
   "source": "Open-Meteo Archive API",
   "lower_is_better": false,
   "methodology": null,

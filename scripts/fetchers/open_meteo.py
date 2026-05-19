@@ -133,6 +133,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "(Open-Meteo historical archive). Higher = warmer."
             ),
             "unit": "°F",
+            "category": "Climate",
             "source": "Open-Meteo Archive API (ERA5 reanalysis, capital city proxy)",
             "lower_is_better": False,
             "methodology": None,
@@ -147,6 +148,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "comfort proxy than raw temp."
             ),
             "unit": "°F",
+            "category": "Climate",
             "source": "Open-Meteo Archive API",
             "lower_is_better": False,
             "methodology": None,
@@ -160,6 +162,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "Lower = drier (more comfortable in hot climates)."
             ),
             "unit": "%",
+            "category": "Climate",
             "source": "Open-Meteo Archive API",
             "lower_is_better": True,
             "methodology": None,
@@ -170,6 +173,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "label": "Sunshine Hours",
             "description": f"Total annual sunshine hours in {YEAR} at each state capital.",
             "unit": "hours/year",
+            "category": "Climate",
             "source": "Open-Meteo Archive API",
             "lower_is_better": False,
             "methodology": None,
@@ -180,6 +184,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "label": "Annual Precipitation",
             "description": f"Total precipitation in {YEAR}. Lower = drier.",
             "unit": "inches/year",
+            "category": "Climate",
             "source": "Open-Meteo Archive API",
             "lower_is_better": True,
             "methodology": None,

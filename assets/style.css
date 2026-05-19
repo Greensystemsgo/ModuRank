@@ -187,7 +187,42 @@ html, body {
 .map-tooltip .tip-row .k { color: var(--text-muted); }
 
 /* ---- Sliders ---- */
-.sliders {
+.sliders { display: flex; flex-direction: column; gap: 22px; }
+
+.header-actions { display: flex; gap: 8px; }
+
+.slider-group { display: flex; flex-direction: column; gap: 10px; }
+
+.slider-group-header {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.slider-group-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px 24px;

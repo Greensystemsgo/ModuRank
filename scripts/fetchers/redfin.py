@@ -116,6 +116,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "Lower = cheaper market."
             ),
             "unit": "USD",
+            "category": "Housing",
             "source": "Redfin Data Center — State Market Tracker",
             "lower_is_better": True,
             "methodology": None,
@@ -131,6 +132,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "Higher = slower market (more buyer leverage)."
             ),
             "unit": "days",
+            "category": "Housing",
             "source": "Redfin Data Center — State Market Tracker",
             "lower_is_better": False,
             "methodology": None,
@@ -146,6 +148,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "Lower = more house for the money."
             ),
             "unit": "USD/sqft",
+            "category": "Housing",
             "source": "Redfin Data Center — State Market Tracker",
             "lower_is_better": True,
             "methodology": None,
@@ -161,6 +164,7 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
                 "Higher = more selection for buyers."
             ),
             "unit": "homes",
+            "category": "Housing",
             "source": "Redfin Data Center — State Market Tracker",
             "lower_is_better": False,
             "methodology": None,

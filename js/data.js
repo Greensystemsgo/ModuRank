@@ -11,13 +11,13 @@ export async function loadDatabase({ sqlJsLocate, dbUrl }) {
 
 export function listModules(db) {
   const rows = db.exec(`
-    SELECT m.id, m.label, m.description, m.unit, m.source,
+    SELECT m.id, m.category, m.label, m.description, m.unit, m.source,
            m.methodology, m.lower_is_better,
            COUNT(r.place_id) AS coverage
     FROM module m
     LEFT JOIN rating r ON r.module_id = m.id
     GROUP BY m.id
-    ORDER BY m.label
+    ORDER BY m.category, m.label
   `);
   if (!rows.length) return [];
   const cols = rows[0].columns;

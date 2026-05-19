@@ -1,5 +1,6 @@
 {
   "id": "home_insurance",
+  "category": "Cost & Taxes",
   "label": "Homeowners Insurance",
   "description": "Average annual homeowners insurance premium (USD).",
   "unit": "USD/year",

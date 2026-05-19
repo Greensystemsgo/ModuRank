@@ -1,5 +1,6 @@
 {
   "id": "median_income",
+  "category": "Economy",
   "label": "Median Household Income",
   "description": "Median household income, USD (ACS 5-year 2023). Higher = wealthier.",
   "unit": "USD/year",

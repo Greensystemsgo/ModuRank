@@ -3,6 +3,7 @@
   "label": "Sunshine Hours",
   "description": "Total annual sunshine hours in 2024 at each state capital.",
   "unit": "hours/year",
+  "category": "Climate",
   "source": "Open-Meteo Archive API",
   "lower_is_better": false,
   "methodology": null,
