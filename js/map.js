@@ -387,6 +387,8 @@ async function _renderCitiesForFocus(stateName) {
     return (a.score || 0) - (b.score || 0);
   });
 
+  const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#2f6df6").trim();
+
   const markers = sorted.map((c) => {
     const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
     const radius = minR + (maxR - minR) * t;
@@ -394,19 +396,19 @@ async function _renderCitiesForFocus(stateName) {
     const isPin = isPinned(c.name, stateName, "city");
     const marker = L.circleMarker([c.latitude, c.longitude], {
       radius,
-      color: isPin ? "var(--accent)" : stroke,
+      color: isPin ? accent : stroke,
       weight: isPin ? 2.5 : 0.8,
       fillColor: fill,
       fillOpacity: 0.9,
     });
     marker.on("mouseover", (e) => {
-      marker.setStyle({ weight: 2.5, color: "var(--accent)" });
+      marker.setStyle({ weight: 2.5, color: accent });
       marker.setRadius(radius * 1.4);
       _showCityTip(e.originalEvent, c, stateName);
     });
     marker.on("mousemove", (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent));
     marker.on("mouseout", () => {
-      marker.setStyle({ weight: isPin ? 2.5 : 0.8, color: isPin ? "var(--accent)" : stroke });
+      marker.setStyle({ weight: isPin ? 2.5 : 0.8, color: isPin ? accent : stroke });
       marker.setRadius(radius);
       _hideTip();
     });
