@@ -388,16 +388,28 @@ async function _renderCitiesForFocus(stateName) {
   });
 
   const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#2f6df6").trim();
+  const topGold = (getComputedStyle(document.documentElement).getPropertyValue("--scale-top") || "#5fbf5a").trim();
+
+  // Identify the top 3 cities by score for visual highlighting.
+  const top3 = new Set(
+    [...cities]
+      .filter((c) => c.score != null)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 3)
+      .map((c) => `${c.state}|${c.name}`)
+  );
 
   const markers = sorted.map((c) => {
     const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
-    const radius = minR + (maxR - minR) * t;
+    let radius = minR + (maxR - minR) * t;
+    const isTop = top3.has(`${c.state}|${c.name}`);
+    if (isTop) radius = Math.max(radius * 1.6, 11);
     const fill = c.score != null ? scale(c.score) : defaultFill;
     const isPin = isPinned(c.name, stateName, "city");
     const marker = L.circleMarker([c.latitude, c.longitude], {
       radius,
-      color: isPin ? accent : stroke,
-      weight: isPin ? 2.5 : 0.8,
+      color: isPin ? accent : (isTop ? topGold : stroke),
+      weight: isPin ? 2.5 : (isTop ? 2.2 : 0.8),
       fillColor: fill,
       fillOpacity: 0.9,
     });
@@ -408,7 +420,9 @@ async function _renderCitiesForFocus(stateName) {
     });
     marker.on("mousemove", (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent));
     marker.on("mouseout", () => {
-      marker.setStyle({ weight: isPin ? 2.5 : 0.8, color: isPin ? accent : stroke });
+      const restoreColor = isPin ? accent : (isTop ? topGold : stroke);
+      const restoreWeight = isPin ? 2.5 : (isTop ? 2.2 : 0.8);
+      marker.setStyle({ weight: restoreWeight, color: restoreColor });
       marker.setRadius(radius);
       _hideTip();
     });
