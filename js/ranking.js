@@ -42,7 +42,6 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
     const li = document.createElement("li");
     if (idx < 3 && (mode === "single" || mode === "cities" || activeFactors > 0)) li.classList.add("top-rank");
     if (mode === "weighted" && activeFactors === 0) li.classList.add("disabled");
-    if (mode !== "cities" && isPinned(r.state)) li.classList.add("pinned");
 
     const rank = document.createElement("span");
     rank.className = "rank";
@@ -62,20 +61,23 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
       score.textContent = activeFactors === 0 ? "—" : (r.score * 100).toFixed(1);
     }
 
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "pin-btn";
+    let pinnedHere;
     if (mode === "cities") {
-      // Cities can't be pinned (yet); just rank/name/score.
-      li.append(rank, name, score);
+      pinnedHere = isPinned(r.state, focusedState, "city");
     } else {
-      const pinBtn = document.createElement("button");
-      pinBtn.className = "pin-btn";
-      pinBtn.textContent = isPinned(r.state) ? "Pinned" : "Pin";
-      pinBtn.title = isPinned(r.state) ? "Remove from compare" : "Add to compare";
-      pinBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        togglePin(r.state);
-      });
-      li.append(rank, name, score, pinBtn);
+      pinnedHere = isPinned(r.state);
     }
+    pinBtn.textContent = pinnedHere ? "Pinned" : "Pin";
+    pinBtn.title = pinnedHere ? "Remove from compare" : "Add to compare";
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (mode === "cities") togglePin(r.state, focusedState, "city");
+      else togglePin(r.state);
+    });
+    if (pinnedHere) li.classList.add("pinned");
+    li.append(rank, name, score, pinBtn);
     ol.append(li);
   });
 

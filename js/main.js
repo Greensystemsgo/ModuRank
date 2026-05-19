@@ -97,7 +97,25 @@ const errBox = (msg) => {
       writeHash(weights);
       setBreakdownContext(db, weights);
       _updateWinnerChip(displayRanking, enabled.length, sortBy);
-      renderCompare((name) => getStateBreakdown(db, name));
+
+      // Compare card supports both state and city pins.
+      const cityBreakdown = (state, name) => {
+        if (!_citiesDb) return [];
+        // Quick lookup: pull city id then breakdown.
+        const stmt = _citiesDb.prepare("SELECT id FROM city WHERE state = :s AND name = :n");
+        stmt.bind({ ":s": state, ":n": name });
+        let id = null;
+        if (stmt.step()) id = stmt.getAsObject().id;
+        stmt.free();
+        if (id == null) return [];
+        // Inline import not great here — use the data.js function.
+        return import("./data.js").then((m) => m.getCityBreakdown(_citiesDb, id));
+      };
+      renderCompare(
+        (name) => getStateBreakdown(db, name),
+        // We need a sync function; do the breakdown sync via a helper.
+        (state, name) => _cityBreakdownSync(_citiesDb, state, name),
+      );
     };
 
     onPinChange(() => refresh());
@@ -172,6 +190,63 @@ function _populatePresets() {
     sel.append(opt);
   }
 }
+
+function _cityBreakdownSync(citiesDb, state, name) {
+  if (!citiesDb) return [];
+  const stmt = citiesDb.prepare("SELECT id FROM city WHERE state = :s AND name = :n");
+  stmt.bind({ ":s": state, ":n": name });
+  let id = null;
+  if (stmt.step()) id = stmt.getAsObject().id;
+  stmt.free();
+  if (id == null) return [];
+
+  // Mirror getCityBreakdown inline (avoids async import).
+  const bstmt = citiesDb.prepare(`
+    SELECT m.id AS module_id, m.label, m.unit, m.lower_is_better,
+           COALESCE(cr.value, sr.value)       AS value,
+           COALESCE(cr.normalized, sr.normalized) AS normalized,
+           CASE WHEN cr.value IS NOT NULL THEN 0 ELSE 1 END AS inherited
+    FROM module m
+    LEFT JOIN city_rating cr ON cr.module_id = m.id AND cr.city_id = :id
+    LEFT JOIN state_rating sr ON sr.module_id = m.id AND sr.state = :state
+    WHERE COALESCE(cr.value, sr.value) IS NOT NULL
+    ORDER BY m.label
+  `);
+  bstmt.bind({ ":id": id, ":state": state });
+  const out = [];
+  while (bstmt.step()) {
+    const row = bstmt.getAsObject();
+    // category is missing in this DB's module table — add a synthetic one
+    // so the compare table groups correctly. Best-effort by module name.
+    row.category = _categoryFor(row.module_id);
+    out.push(row);
+  }
+  bstmt.free();
+  return out;
+}
+
+const CATEGORY_FALLBACK = {
+  cost_of_living: "Cost & Taxes", sales_tax: "Cost & Taxes",
+  income_tax: "Cost & Taxes", home_insurance: "Cost & Taxes",
+  property_tax: "Cost & Taxes",
+  median_sale_price: "Housing", days_on_market: "Housing",
+  price_per_sqft: "Housing", housing_inventory: "Housing",
+  home_value: "Housing", median_rent: "Housing",
+  median_income: "Economy", unemployment: "Economy",
+  population: "Demographics", population_density: "Demographics",
+  median_age: "Demographics", broadband_pct: "Demographics",
+  commute_time: "Demographics",
+  bachelors_pct: "Education",
+  life_expectancy: "Health", uninsured_pct: "Health",
+  avg_temperature: "Climate", feels_like_temperature: "Climate",
+  relative_humidity: "Climate", humidity: "Climate",
+  sunshine_hours: "Climate", precipitation: "Climate", uv_index: "Climate",
+  disasters: "Safety & Risk", air_quality_pm25: "Safety & Risk",
+  violent_crime: "Safety & Risk",
+  public_lands: "Outdoors",
+  gun_friendliness: "Politics & Culture",
+};
+function _categoryFor(id) { return CATEGORY_FALLBACK[id] || "Other"; }
 
 function _updateWinnerChip(ranking, activeFactors, sortBy) {
   const chip = document.getElementById("winner-chip");

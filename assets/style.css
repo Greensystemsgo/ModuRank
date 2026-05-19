@@ -679,6 +679,16 @@ input[type="range"] {
   font-size: 12px;
   font-weight: 600;
   color: var(--accent);
+  text-align: left;
+}
+.compare-col-title { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+.compare-col-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 1px;
 }
 .compare-table .category-row td {
   font-size: 10px;

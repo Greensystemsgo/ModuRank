@@ -3,6 +3,7 @@
 // fire onFocus callback). Hover for full per-state breakdown tooltip.
 
 import { getStateBreakdown, loadCitiesDatabase, computeCityRanking, getCityBreakdown } from "./data.js";
+import { isPinned, togglePin } from "./compare.js";
 
 let _map = null;
 let _tileLayer = null;
@@ -342,29 +343,36 @@ async function _renderCitiesForFocus(stateName) {
     const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
     const radius = minR + (maxR - minR) * t;
     const fill = c.score != null ? scale(c.score) : defaultFill;
+    const isPin = isPinned(c.name, stateName, "city");
     const marker = L.circleMarker([c.latitude, c.longitude], {
       radius,
-      color: stroke,
-      weight: 0.8,
+      color: isPin ? "var(--accent)" : stroke,
+      weight: isPin ? 2.5 : 0.8,
       fillColor: fill,
       fillOpacity: 0.9,
     });
-    marker.on("mouseover", (e) => _showCityTip(e.originalEvent, c));
+    marker.on("mouseover", (e) => _showCityTip(e.originalEvent, c, stateName));
     marker.on("mousemove", (e) => _placeTip(document.getElementById("map-tooltip"), e.originalEvent));
     marker.on("mouseout", _hideTip);
+    marker.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      togglePin(c.name, stateName, "city");
+    });
     return marker;
   });
 
   _cityLayer = L.layerGroup(markers).addTo(_map);
 }
 
-function _showCityTip(event, city) {
+function _showCityTip(event, city, stateName) {
   const tip = document.getElementById("map-tooltip");
+  const pinned = stateName ? isPinned(city.name, stateName, "city") : false;
   let html = `<div class="tip-state"><span>${city.name}</span>`;
   if (city.score != null) {
     html += `<span class="tip-rank">${(city.score * 100).toFixed(1)}</span>`;
   }
   html += `</div>`;
+  html += `<div class="tip-row" style="margin-top:2px"><span class="k" style="font-size:10px;opacity:0.7">${pinned ? "Click marker to unpin" : "Click marker to pin for compare"}</span></div>`;
 
   if (city.population) {
     html += `<div class="tip-row"><span class="k">Population</span><span class="v">${city.population.toLocaleString()}</span></div>`;
