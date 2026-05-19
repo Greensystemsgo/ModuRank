@@ -14,11 +14,27 @@
       <h1>ModuRank</h1>
       <p class="tagline">Slide the dials. Find your state.</p>
     </div>
-    <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light mode" title="Toggle theme">
-      <span class="theme-icon-dark">&#9789;</span>
-      <span class="theme-icon-light">&#9728;</span>
-    </button>
+    <div class="header-right">
+      <div id="winner-chip" class="winner-chip hidden" title="Your current top-ranked state">
+        <span class="winner-label">Top</span>
+        <span id="winner-name">—</span>
+        <span id="winner-score" class="winner-score"></span>
+      </div>
+      <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light mode" title="Toggle theme">
+        <span class="theme-icon-dark">&#9789;</span>
+        <span class="theme-icon-light">&#9728;</span>
+      </button>
+    </div>
   </header>
+
+  <div id="onboarding" class="onboarding">
+    <span class="onboarding-step"><b>1.</b> Pick a preset</span>
+    <span class="onboarding-arrow">→</span>
+    <span class="onboarding-step"><b>2.</b> Fine-tune the sliders</span>
+    <span class="onboarding-arrow">→</span>
+    <span class="onboarding-step"><b>3.</b> Click a state to zoom in</span>
+    <button id="onboarding-close" class="onboarding-close" title="Dismiss">×</button>
+  </div>
 
   <main class="app-main">
     <section class="card map-card">
@@ -69,6 +85,17 @@
         </div>
       </div>
       <ol id="ranking" class="ranking"></ol>
+    </section>
+
+    <section id="compare-card" class="card compare-card hidden">
+      <div class="card-header">
+        <h2>Compare</h2>
+        <div class="header-actions">
+          <span class="muted" id="compare-summary"></span>
+          <button id="compare-clear" class="btn-secondary" title="Remove all pinned states">Clear</button>
+        </div>
+      </div>
+      <div id="compare-table-wrap" class="compare-table-wrap"></div>
     </section>
   </main>
 

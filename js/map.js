@@ -193,20 +193,28 @@ function _showTip(event, feature) {
   if (_db) {
     const rows = getStateBreakdown(_db, name);
     const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
-    const disabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) === 0);
 
     if (enabled.length) {
-      html += `<div class="tip-section">Active factors (${enabled.length})</div>`;
-      enabled.sort((a, b) => b.normalized - a.normalized);
-      for (const row of enabled) {
+      // Top 3 strengths + bottom 3 weaknesses among active factors.
+      const sorted = [...enabled].sort((a, b) => b.normalized - a.normalized);
+      const strengths = sorted.slice(0, 3);
+      const weaknesses = sorted.slice(-3).reverse();
+
+      html += `<div class="tip-section">Strengths</div>`;
+      for (const row of strengths) {
         html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
       }
-    }
-    if (disabled.length) {
-      html += `<div class="tip-section">Disabled (${disabled.length})</div>`;
-      for (const row of disabled) {
-        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v" style="opacity:0.55">${_fmtValue(row)}</span></div>`;
+      if (enabled.length > 3) {
+        html += `<div class="tip-section">Weaknesses</div>`;
+        for (const row of weaknesses) {
+          html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_fmtValue(row)}</span></div>`;
+        }
       }
+      if (enabled.length > 6) {
+        html += `<div class="tip-row" style="margin-top:6px;font-size:10px;opacity:0.6">+ ${enabled.length - 6} more factors active</div>`;
+      }
+    } else {
+      html += `<div class="tip-row"><span class="k">No active factors — turn up some sliders</span></div>`;
     }
   }
 

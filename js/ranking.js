@@ -2,6 +2,8 @@
 //   weighted  — show 0-100 weighted-score percentile
 //   single    — show that module's raw value with its unit
 
+import { isPinned, togglePin } from "./compare.js";
+
 export function renderRanking(ranking, activeFactors, opts = {}) {
   const { mode = "weighted", moduleLabel = null } = opts;
   const ol = document.getElementById("ranking");
@@ -20,6 +22,7 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
     const li = document.createElement("li");
     if (idx < 3 && (mode === "single" || activeFactors > 0)) li.classList.add("top-rank");
     if (mode === "weighted" && activeFactors === 0) li.classList.add("disabled");
+    if (isPinned(r.state)) li.classList.add("pinned");
 
     const rank = document.createElement("span");
     rank.className = "rank";
@@ -37,7 +40,16 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
       score.textContent = activeFactors === 0 ? "—" : (r.score * 100).toFixed(1);
     }
 
-    li.append(rank, name, score);
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "pin-btn";
+    pinBtn.textContent = isPinned(r.state) ? "Pinned" : "Pin";
+    pinBtn.title = isPinned(r.state) ? "Remove from compare" : "Add to compare";
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePin(r.state);
+    });
+
+    li.append(rank, name, score, pinBtn);
     ol.append(li);
   });
 }

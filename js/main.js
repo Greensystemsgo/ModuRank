@@ -2,13 +2,14 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, listModules, computeRanking, computeSingleFactor } from "./data.js";
+import { loadDatabase, listModules, computeRanking, computeSingleFactor, getStateBreakdown } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
   resetWeights, randomizeWeights, applyWeights,
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
+import { renderCompare, onChange as onPinChange } from "./compare.js";
 import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
@@ -49,21 +50,28 @@ const errBox = (msg) => {
       const enabled = weights.filter((w) => w.weight > 0);
       const sortBy = document.getElementById("sort-by-select").value;
 
+      let ranking;
       if (sortBy && sortBy !== "weighted") {
-        const ranking = computeSingleFactor(db, sortBy);
+        ranking = computeSingleFactor(db, sortBy);
         updateMap(ranking);
         renderRanking(ranking, 1, {
           mode: "single",
           moduleLabel: modulesById.get(sortBy)?.label || sortBy,
         });
       } else {
-        const ranking = computeRanking(db, weights);
+        ranking = computeRanking(db, weights);
         updateMap(ranking);
         renderRanking(ranking, enabled.length);
       }
       writeHash(weights);
       setBreakdownContext(db, weights);
+      _updateWinnerChip(ranking, enabled.length, sortBy);
+      renderCompare((name) => getStateBreakdown(db, name));
     };
+
+    onPinChange(() => refresh());
+
+    _initOnboarding();
 
     onWeightsChange(refresh);
     onFocusChange((stateName) => {
@@ -88,6 +96,10 @@ const errBox = (msg) => {
     });
 
     document.getElementById("sort-by-select").addEventListener("change", () => refresh());
+
+    document.getElementById("compare-clear").addEventListener("click", () => {
+      import("./compare.js").then((m) => m.clearPins());
+    });
 
     document.getElementById("preset-select").addEventListener("change", (e) => {
       const name = e.target.value;
@@ -128,6 +140,45 @@ function _populatePresets() {
     opt.title = p.description;
     sel.append(opt);
   }
+}
+
+function _updateWinnerChip(ranking, activeFactors, sortBy) {
+  const chip = document.getElementById("winner-chip");
+  const name = document.getElementById("winner-name");
+  const score = document.getElementById("winner-score");
+  if (!ranking || ranking.length === 0 || (sortBy === "weighted" && activeFactors === 0)) {
+    chip.classList.add("hidden");
+    return;
+  }
+  const top = ranking[0];
+  name.textContent = top.state;
+  if (sortBy && sortBy !== "weighted") {
+    score.textContent = _fmtCompact(top.value) + (top.unit ? " " + top.unit : "");
+  } else {
+    score.textContent = (top.score * 100).toFixed(1);
+  }
+  chip.classList.remove("hidden");
+}
+
+function _fmtCompact(v) {
+  if (v == null) return "—";
+  if (Math.abs(v) >= 10000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (Math.abs(v) >= 100)   return v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  if (Math.abs(v) >= 1)     return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function _initOnboarding() {
+  const ob = document.getElementById("onboarding");
+  if (!ob) return;
+  if (localStorage.getItem("moduRank.onboardingDismissed") === "1") {
+    ob.classList.add("hidden");
+    return;
+  }
+  document.getElementById("onboarding-close").addEventListener("click", () => {
+    ob.classList.add("hidden");
+    localStorage.setItem("moduRank.onboardingDismissed", "1");
+  });
 }
 
 function _populateSortBy(modules) {
