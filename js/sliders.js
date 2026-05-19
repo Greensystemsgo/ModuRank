@@ -12,12 +12,17 @@ const CATEGORY_ORDER = [
   "Cost & Taxes",
   "Housing",
   "Economy",
+  "Demographics",
   "Climate",
   "Safety & Risk",
   "Outdoors",
   "Politics & Culture",
   "Other",
 ];
+
+const ALL_TAB = "All";
+let _activeTab = ALL_TAB;
+let _tabBar = null;
 
 function _groupByCategory(modules) {
   const groups = new Map();
@@ -40,9 +45,20 @@ export function renderSliders(modules) {
   const container = document.getElementById("sliders");
   container.innerHTML = "";
 
-  for (const [cat, group] of _groupByCategory(modules)) {
+  const grouped = _groupByCategory(modules);
+
+  // Tab bar
+  _tabBar = document.createElement("div");
+  _tabBar.className = "tab-bar";
+  _tabBar.append(_makeTab(ALL_TAB, modules.length));
+  for (const [cat, group] of grouped) _tabBar.append(_makeTab(cat, group.length));
+  container.append(_tabBar);
+
+  // Sections (always rendered; visibility toggled by tab)
+  for (const [cat, group] of grouped) {
     const section = document.createElement("section");
     section.className = "slider-group";
+    section.dataset.category = cat;
 
     const header = document.createElement("h3");
     header.className = "slider-group-header";
@@ -59,6 +75,38 @@ export function renderSliders(modules) {
       grid.append(_renderRow(m));
     }
     container.append(section);
+  }
+  _applyTabFilter();
+}
+
+function _makeTab(name, count) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "tab" + (name === _activeTab ? " active" : "");
+  btn.dataset.tab = name;
+  const labelSpan = document.createElement("span");
+  labelSpan.textContent = name;
+  const countSpan = document.createElement("span");
+  countSpan.className = "tab-count";
+  countSpan.textContent = String(count);
+  btn.append(labelSpan, countSpan);
+  btn.addEventListener("click", () => {
+    _activeTab = name;
+    for (const t of _tabBar.querySelectorAll(".tab")) {
+      t.classList.toggle("active", t.dataset.tab === name);
+    }
+    _applyTabFilter();
+  });
+  return btn;
+}
+
+function _applyTabFilter() {
+  for (const section of document.querySelectorAll(".slider-group")) {
+    const visible = _activeTab === ALL_TAB || section.dataset.category === _activeTab;
+    section.style.display = visible ? "" : "none";
+    // When a tab is active (not "All"), hide the redundant header.
+    const header = section.querySelector(".slider-group-header");
+    if (header) header.style.display = (_activeTab === ALL_TAB) ? "" : "none";
   }
 }
 

@@ -38,6 +38,33 @@ VARIABLES = {
         "unit": "USD/month",
         "lower_is_better": True,
     },
+    "population": {
+        "var": "B01003_001E",
+        "category": "Demographics",
+        "label": "Population",
+        "description": f"Total state population (ACS 5-year {YEAR}). Higher = bigger market, more amenities.",
+        "unit": "people",
+        "lower_is_better": False,
+    },
+}
+
+# Land area in square miles (Census 2020 official). Used to derive density.
+STATE_LAND_AREA_SQMI: dict[str, float] = {
+    "Alabama": 50645, "Alaska": 570641, "Arizona": 113594, "Arkansas": 52035,
+    "California": 155779, "Colorado": 103642, "Connecticut": 4842,
+    "Delaware": 1949, "District of Columbia": 61, "Florida": 53625,
+    "Georgia": 57513, "Hawaii": 6423, "Idaho": 82643, "Illinois": 55519,
+    "Indiana": 35826, "Iowa": 55857, "Kansas": 81759, "Kentucky": 39486,
+    "Louisiana": 43204, "Maine": 30843, "Maryland": 9707, "Massachusetts": 7800,
+    "Michigan": 56539, "Minnesota": 79627, "Mississippi": 46923,
+    "Missouri": 68742, "Montana": 145546, "Nebraska": 76824, "Nevada": 109781,
+    "New Hampshire": 8953, "New Jersey": 7354, "New Mexico": 121298,
+    "New York": 47126, "North Carolina": 48618, "North Dakota": 69001,
+    "Ohio": 40861, "Oklahoma": 68595, "Oregon": 95988, "Pennsylvania": 44743,
+    "Rhode Island": 1034, "South Carolina": 30061, "South Dakota": 75811,
+    "Tennessee": 41235, "Texas": 261232, "Utah": 82170, "Vermont": 9217,
+    "Virginia": 39490, "Washington": 66456, "West Virginia": 24038,
+    "Wisconsin": 54158, "Wyoming": 97093,
 }
 
 
@@ -87,4 +114,28 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "methodology": None,
             "data": data,
         })
+
+    # Derived: population density (people / sq mi) from the population module.
+    pop_mod = next((m for m in modules if m["id"] == "population"), None)
+    if pop_mod:
+        density: dict[str, float] = {}
+        for state, pop in pop_mod["data"].items():
+            area = STATE_LAND_AREA_SQMI.get(state)
+            if area:
+                density[state] = round(pop / area, 1)
+        modules.append({
+            "id": "population_density",
+            "category": "Demographics",
+            "label": "Population Density",
+            "description": (
+                f"People per square mile (ACS {YEAR} pop / Census 2020 land area). "
+                "Lower = more rural / less crowded."
+            ),
+            "unit": "people/sq mi",
+            "source": "US Census Bureau — ACS B01003 ÷ Census 2020 land area",
+            "lower_is_better": True,
+            "methodology": None,
+            "data": density,
+        })
+
     return modules

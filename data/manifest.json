@@ -12,6 +12,8 @@
     "median_income",
     "home_value",
     "median_rent",
+    "population",
+    "population_density",
     "unemployment",
     "avg_temperature",
     "feels_like_temperature",
