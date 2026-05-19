@@ -10,7 +10,8 @@ import {
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
 import { renderCompare, onChange as onPinChange } from "./compare.js";
-import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl } from "./map.js";
+import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl, focusStateByName, flyToCity } from "./map.js";
+import { initSearch, setSearchCitiesDb } from "./search.js";
 import { renderRanking } from "./ranking.js";
 
 initTheme();
@@ -48,6 +49,12 @@ const errBox = (msg) => {
     if (initial) applyWeights(initial);
 
     let _citiesDb = null;
+
+    initSearch({
+      onSelectState: (name) => focusStateByName(name),
+      onSelectCity: (city) => flyToCity(city),
+    });
+
     const refresh = async () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
@@ -66,7 +73,10 @@ const errBox = (msg) => {
       let displayMode = "weighted";
       if (focused) {
         if (!_citiesDb) {
-          try { _citiesDb = await loadCitiesDatabase(CITIES_DB_URL); }
+          try {
+            _citiesDb = await loadCitiesDatabase(CITIES_DB_URL);
+            setSearchCitiesDb(_citiesDb);
+          }
           catch (e) { /* leave _citiesDb null, fall back to states */ }
         }
         if (_citiesDb) {

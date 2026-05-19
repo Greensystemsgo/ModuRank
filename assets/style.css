@@ -61,6 +61,63 @@ html, body {
   gap: 10px;
 }
 
+.search-wrap { position: relative; }
+.search-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  width: 240px;
+  outline: none;
+  font-family: inherit;
+}
+.search-input:focus { border-color: var(--accent); background: var(--bg-card); }
+@media (max-width: 700px) { .search-input { width: 160px; } }
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 200;
+  padding: 4px;
+}
+.search-results.hidden { display: none; }
+.search-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 8px 10px 2px;
+}
+.search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.search-result:hover, .search-result:focus { background: var(--accent-soft); color: var(--accent); outline: none; }
+.search-result mark { background: transparent; color: var(--accent); font-weight: 600; }
+.search-result .search-sub { font-size: 11px; color: var(--text-muted); }
+.search-empty { padding: 10px 12px; color: var(--text-muted); font-size: 12px; }
+
 /* Sticky "current top state" chip in the header. */
 .winner-chip {
   display: inline-flex;

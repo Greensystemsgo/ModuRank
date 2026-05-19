@@ -454,3 +454,36 @@ function _renderLegend() {
 }
 
 export function getFocusedState() { return _focusedState; }
+
+// Programmatic focus — used by the search box. Walks the state layer to
+// find the feature, mimics a click.
+export function focusStateByName(name) {
+  if (!_stateLayer) return;
+  _stateLayer.eachLayer((layer) => {
+    if (layer.feature.properties.name === name) {
+      _focusState(layer.feature, layer);
+    }
+  });
+}
+
+// Fly the map to a specific city, focus its state, drop a transient pin.
+export async function flyToCity(city) {
+  // First focus the city's state so the city dots layer is loaded/rendered.
+  focusStateByName(city.state);
+  // Wait a tick for the focus + city render to complete.
+  await new Promise((r) => setTimeout(r, 250));
+  _map.flyTo([city.latitude, city.longitude], 9, { duration: 0.6 });
+  // Show the city tooltip briefly.
+  const fake = { name: city.name, score: null, population: city.population, latitude: city.latitude, longitude: city.longitude };
+  // We don't have city.id from search, so just show name/pop.
+  const tip = document.getElementById("map-tooltip");
+  tip.innerHTML = `<div class="tip-state"><span>${city.name}, ${city.state}</span></div>` +
+    (city.population ? `<div class="tip-row"><span class="k">Population</span><span class="v">${city.population.toLocaleString()}</span></div>` : "");
+  tip.classList.add("visible");
+  setTimeout(() => tip.classList.remove("visible"), 2500);
+  // Place near the city — convert lat/lon to viewport.
+  const point = _map.latLngToContainerPoint([city.latitude, city.longitude]);
+  const rect = _map.getContainer().getBoundingClientRect();
+  tip.style.left = `${rect.left + point.x + 14}px`;
+  tip.style.top  = `${rect.top + point.y + 14}px`;
+}
