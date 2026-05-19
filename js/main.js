@@ -2,7 +2,7 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, listModules, computeRanking } from "./data.js";
+import { loadDatabase, listModules, computeRanking, computeSingleFactor } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
   resetWeights, randomizeWeights, applyWeights,
@@ -34,9 +34,11 @@ const errBox = (msg) => {
     ]);
 
     const modules = listModules(db);
+    const modulesById = new Map(modules.map((m) => [m.id, m]));
     renderSliders(modules);
     renderMap(topology);
     _populatePresets();
+    _populateSortBy(modules);
 
     // Apply weights from URL hash if present.
     const initial = readHash();
@@ -45,11 +47,22 @@ const errBox = (msg) => {
     const refresh = () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
-      const ranking = computeRanking(db, weights);
-      updateMap(ranking);
-      renderRanking(ranking, enabled.length);
+      const sortBy = document.getElementById("sort-by-select").value;
+
+      if (sortBy && sortBy !== "weighted") {
+        const ranking = computeSingleFactor(db, sortBy);
+        updateMap(ranking);
+        renderRanking(ranking, 1, {
+          mode: "single",
+          moduleLabel: modulesById.get(sortBy)?.label || sortBy,
+        });
+      } else {
+        const ranking = computeRanking(db, weights);
+        updateMap(ranking);
+        renderRanking(ranking, enabled.length);
+      }
       writeHash(weights);
-      setBreakdownContext(db, weights);  // tooltip needs live weights to dim disabled rows
+      setBreakdownContext(db, weights);
     };
 
     onWeightsChange(refresh);
@@ -68,6 +81,8 @@ const errBox = (msg) => {
       btn.textContent = ok ? "✓ Copied" : "✗ Couldn't copy";
       setTimeout(() => { btn.textContent = orig; }, 1400);
     });
+
+    document.getElementById("sort-by-select").addEventListener("change", () => refresh());
 
     document.getElementById("preset-select").addEventListener("change", (e) => {
       const name = e.target.value;
@@ -107,5 +122,27 @@ function _populatePresets() {
     opt.textContent = name;
     opt.title = p.description;
     sel.append(opt);
+  }
+}
+
+function _populateSortBy(modules) {
+  const sel = document.getElementById("sort-by-select");
+  // Group options by category for readability.
+  const byCategory = new Map();
+  for (const m of modules) {
+    const cat = m.category || "Other";
+    if (!byCategory.has(cat)) byCategory.set(cat, []);
+    byCategory.get(cat).push(m);
+  }
+  for (const [cat, list] of byCategory) {
+    const group = document.createElement("optgroup");
+    group.label = cat;
+    for (const m of list) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.label + (m.lower_is_better ? "  (lower = better)" : "");
+      group.append(opt);
+    }
+    sel.append(group);
   }
 }

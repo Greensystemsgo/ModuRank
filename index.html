@@ -47,7 +47,12 @@
     <section class="card ranking-card">
       <div class="card-header">
         <h2>Ranking</h2>
-        <span id="ranking-summary" class="muted"></span>
+        <div class="header-actions">
+          <span id="ranking-summary" class="muted"></span>
+          <select id="sort-by-select" class="preset-select" title="Sort the ranking by a single factor">
+            <option value="weighted">Weighted score</option>
+          </select>
+        </div>
       </div>
       <ol id="ranking" class="ranking"></ol>
     </section>

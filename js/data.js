@@ -90,6 +90,36 @@ export function computeRanking(db, weights) {
   return out;
 }
 
+// Single-factor browse — sort states by one module's raw value.
+// Returns the same shape as computeRanking + each state's raw value/unit.
+export function computeSingleFactor(db, moduleId) {
+  const stmt = db.prepare(`
+    SELECT p.name AS state, p.fips,
+           r.value, r.normalized, m.unit, m.lower_is_better
+    FROM rating r
+    JOIN module m ON m.id = r.module_id
+    JOIN place p  ON p.id = r.place_id
+    WHERE m.id = :id AND p.kind = 'state'
+    ORDER BY r.normalized DESC
+  `);
+  stmt.bind({ ":id": moduleId });
+  const out = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    out.push({
+      state: row.state,
+      fips: row.fips,
+      value: row.value,
+      unit: row.unit,
+      score: row.normalized,  // reuse normalized as the color scale
+      factors: 1,
+      lowerIsBetter: !!row.lower_is_better,
+    });
+  }
+  stmt.free();
+  return out;
+}
+
 // Raw values for tooltip ("California — Cost of Living: 142.3 index").
 export function getStateBreakdown(db, stateName) {
   const stmt = db.prepare(`
