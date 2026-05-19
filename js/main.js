@@ -8,6 +8,7 @@ import {
   resetWeights, randomizeWeights, applyWeights,
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
+import { PRESETS } from "./presets.js";
 import { renderMap, updateMap } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
@@ -35,6 +36,7 @@ const errBox = (msg) => {
     const modules = listModules(db);
     renderSliders(modules);
     renderMap(topology);
+    _populatePresets();
 
     // Apply weights from URL hash if present.
     const initial = readHash();
@@ -66,6 +68,19 @@ const errBox = (msg) => {
       setTimeout(() => { btn.textContent = orig; }, 1400);
     });
 
+    document.getElementById("preset-select").addEventListener("change", (e) => {
+      const name = e.target.value;
+      if (!name) return;
+      const preset = PRESETS[name];
+      if (!preset) return;
+      // Start from a default-50 baseline so picking a new preset doesn't leak
+      // weights from the previous one.
+      resetWeights();
+      applyWeights(preset.weights);
+      refresh();
+      e.target.value = "";  // reset dropdown to placeholder
+    });
+
     // Sync map/ranking if user manually edits the hash (e.g. paste a shared
     // link in the same tab).
     window.addEventListener("hashchange", () => {
@@ -82,3 +97,14 @@ const errBox = (msg) => {
     errBox(err.message || String(err));
   }
 })();
+
+function _populatePresets() {
+  const sel = document.getElementById("preset-select");
+  for (const [name, p] of Object.entries(PRESETS)) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    opt.title = p.description;
+    sel.append(opt);
+  }
+}
