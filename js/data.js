@@ -93,12 +93,13 @@ export function computeRanking(db, weights) {
 // Raw values for tooltip ("California — Cost of Living: 142.3 index").
 export function getStateBreakdown(db, stateName) {
   const stmt = db.prepare(`
-    SELECT m.label, m.unit, r.value, r.normalized
+    SELECT m.id AS module_id, m.label, m.unit, m.category,
+           r.value, r.normalized
     FROM rating r
     JOIN module m ON m.id = r.module_id
     JOIN place p  ON p.id = r.place_id
     WHERE p.name = :name AND p.kind = 'state'
-    ORDER BY m.label
+    ORDER BY m.category, m.label
   `);
   stmt.bind({ ":name": stateName });
   const out = [];

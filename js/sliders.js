@@ -13,6 +13,7 @@ const CATEGORY_ORDER = [
   "Housing",
   "Economy",
   "Demographics",
+  "Education",
   "Climate",
   "Safety & Risk",
   "Outdoors",

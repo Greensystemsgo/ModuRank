@@ -1,9 +1,18 @@
 // US states choropleth via d3 + topojson + us-atlas.
 
+import { getStateBreakdown } from "./data.js";
+
 let _svg = null;
 let _paths = null;
 let _projection = null;
 let _path = null;
+let _db = null;
+let _weightsByModule = new Map();
+
+export function setBreakdownContext(db, weights) {
+  _db = db;
+  _weightsByModule = new Map(weights.map((w) => [w.id, w.weight]));
+}
 
 // 4-stop diverging-warm gradient matching style.css legend.
 const scale = (t) => {
@@ -91,19 +100,68 @@ function showTip(event, d) {
   const rank = _ranksByFips.get(fips);
   const name = d.properties.name;
 
-  let html = `<div class="tip-state">${name}</div>`;
+  // Header
+  let html = `<div class="tip-state"><span>${name}</span>`;
   if (r && r.factors > 0) {
-    html += `<div class="tip-row"><span class="k">Rank</span><span>#${rank}</span></div>`;
-    html += `<div class="tip-row"><span class="k">Score</span><span>${(r.score * 100).toFixed(1)}</span></div>`;
-  } else {
+    html += `<span class="tip-rank">#${rank} · ${(r.score * 100).toFixed(1)}</span>`;
+  }
+  html += `</div>`;
+
+  // Full per-module breakdown (if DB context is set).
+  if (_db) {
+    const rows = getStateBreakdown(_db, name);
+    const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
+    const disabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) === 0);
+
+    if (enabled.length) {
+      html += `<div class="tip-section">Active factors (${enabled.length})</div>`;
+      // Sort by normalized score desc — show strengths first.
+      enabled.sort((a, b) => b.normalized - a.normalized);
+      for (const row of enabled) {
+        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v">${_formatValue(row)}</span></div>`;
+      }
+    }
+    if (disabled.length) {
+      html += `<div class="tip-section">Disabled (${disabled.length})</div>`;
+      for (const row of disabled) {
+        html += `<div class="tip-row"><span class="k">${row.label}</span><span class="v" style="opacity:0.55">${_formatValue(row)}</span></div>`;
+      }
+    }
+  } else if (!(r && r.factors > 0)) {
     html += `<div class="tip-row"><span class="k">No active factors</span></div>`;
   }
+
   tip.innerHTML = html;
   tip.classList.add("visible");
+  _placeTip(tip, event);
+}
 
-  const container = document.getElementById("map").getBoundingClientRect();
-  const x = event.clientX - container.left + 12;
-  const y = event.clientY - container.top + 12;
+function _formatValue(row) {
+  const v = row.value;
+  const u = row.unit || "";
+  let formatted;
+  if (Math.abs(v) >= 10000) {
+    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  } else if (Math.abs(v) >= 100) {
+    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  } else if (Math.abs(v) >= 1) {
+    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  } else {
+    formatted = v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  }
+  return u ? `${formatted} ${u}` : formatted;
+}
+
+function _placeTip(tip, event) {
+  // position: fixed → coords are viewport-relative.
+  const PAD = 14;
+  const w = tip.offsetWidth || 280;
+  const h = tip.offsetHeight || 200;
+  let x = event.clientX + PAD;
+  let y = event.clientY + PAD;
+  if (x + w > window.innerWidth - 8)  x = event.clientX - w - PAD;
+  if (y + h > window.innerHeight - 8) y = event.clientY - h - PAD;
+  if (y < 8) y = 8;
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
 }

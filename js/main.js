@@ -9,7 +9,7 @@ import {
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
-import { renderMap, updateMap } from "./map.js";
+import { renderMap, updateMap, setBreakdownContext } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
 initTheme();
@@ -49,6 +49,7 @@ const errBox = (msg) => {
       updateMap(ranking);
       renderRanking(ranking, enabled.length);
       writeHash(weights);
+      setBreakdownContext(db, weights);  // tooltip needs live weights to dim disabled rows
     };
 
     onWeightsChange(refresh);

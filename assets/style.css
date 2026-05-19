@@ -167,24 +167,52 @@ html, body {
 }
 
 .map-tooltip {
-  position: absolute;
+  position: fixed;
   pointer-events: none;
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-size: 12px;
   box-shadow: var(--shadow);
   opacity: 0;
-  transition: opacity 0.1s;
-  max-width: 240px;
-  z-index: 10;
+  transition: opacity 0.08s;
+  width: 280px;
+  max-height: 70vh;
+  overflow: auto;
+  z-index: 100;
 }
 .map-tooltip.visible { opacity: 1; }
-.map-tooltip .tip-state { font-weight: 600; margin-bottom: 4px; font-size: 13px; }
-.map-tooltip .tip-row { display: flex; justify-content: space-between; gap: 12px; }
+.map-tooltip .tip-state {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.map-tooltip .tip-rank { color: var(--accent); font-size: 12px; font-weight: 700; }
+.map-tooltip .tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
 .map-tooltip .tip-row .k { color: var(--text-muted); }
+.map-tooltip .tip-row .v { font-weight: 500; }
+.map-tooltip .tip-section {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
 
 /* ---- Sliders ---- */
 .sliders { display: flex; flex-direction: column; gap: 16px; }

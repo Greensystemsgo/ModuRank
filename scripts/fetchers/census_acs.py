@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from .base import cached_get
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # 2023 ACS 5-year (released Dec 2024) is the latest stable vintage.
 YEAR = 2023
@@ -45,6 +48,14 @@ VARIABLES = {
         "description": f"Total state population (ACS 5-year {YEAR}). Higher = bigger market, more amenities.",
         "unit": "people",
         "lower_is_better": False,
+    },
+    "median_age": {
+        "var": "B01002_001E",
+        "category": "Demographics",
+        "label": "Median Age",
+        "description": f"Median age in years (ACS 5-year {YEAR}). Higher = older population.",
+        "unit": "years",
+        "lower_is_better": False,  # neutral; users can disable
     },
 }
 
@@ -138,4 +149,61 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "data": density,
         })
 
+    # Derived: bachelor's-degree-or-higher % among adults 25+.
+    # B15003 universe = population 25 years and over (variable _001E).
+    # _022E bachelor's, _023E master's, _024E professional, _025E doctorate.
+    bachelors = _fetch_education_pct(api_key, state_fips_to_name)
+    if bachelors:
+        modules.append({
+            "id": "bachelors_pct",
+            "category": "Education",
+            "label": "Bachelor's Degree or Higher",
+            "description": (
+                f"% of adults 25+ with a bachelor's degree or higher "
+                f"(ACS 5-year {YEAR}). Higher = more educated populace."
+            ),
+            "unit": "%",
+            "source": f"US Census Bureau — ACS 5-year {YEAR} (B15003)",
+            "lower_is_better": False,
+            "methodology": None,
+            "data": bachelors,
+        })
+
     return modules
+
+
+def _fetch_education_pct(
+    api_key: str,
+    state_fips_to_name: dict[str, str],
+) -> dict[str, float]:
+    """% of adults 25+ with bachelor's degree or higher per state."""
+    variables = ["B15003_001E", "B15003_022E", "B15003_023E",
+                 "B15003_024E", "B15003_025E"]
+    url = (
+        f"https://api.census.gov/data/{YEAR}/acs/acs5"
+        f"?get=NAME,{','.join(variables)}&for=state:*&key={api_key}"
+    )
+    try:
+        body = cached_get(url, f"census_acs_{YEAR}_education.json")
+    except Exception as e:
+        print(f"  [Census ACS] education: {e}")
+        return {}
+    rows = json.loads(body)
+    header = rows[0]
+    state_idx = header.index("state")
+    idxs = {v: header.index(v) for v in variables}
+
+    out: dict[str, float] = {}
+    for row in rows[1:]:
+        name = state_fips_to_name.get(row[state_idx])
+        if not name:
+            continue  # Filters out Puerto Rico etc.
+        try:
+            denom = float(row[idxs["B15003_001E"]])
+            numer = sum(float(row[idxs[v]]) for v in variables[1:])
+        except (TypeError, ValueError):
+            continue
+        if denom <= 0:
+            continue
+        out[name] = round(numer / denom * 100, 1)
+    return out
