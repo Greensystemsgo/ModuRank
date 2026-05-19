@@ -54,6 +54,7 @@ from fetchers import (  # noqa: E402
     cdc_life_expectancy,
     census_acs,
     fbi_crime,
+    geonames_cities,
     open_meteo,
     openweather_air,
     redfin,
@@ -347,13 +348,18 @@ def write_sqlite(modules: list[dict]) -> None:
                 lower_is_better INTEGER NOT NULL
             );
             CREATE TABLE place (
-                id    INTEGER PRIMARY KEY,
-                kind  TEXT NOT NULL,
-                state TEXT NOT NULL,
-                name  TEXT NOT NULL,
-                fips  TEXT
+                id          INTEGER PRIMARY KEY,
+                kind        TEXT NOT NULL,
+                state       TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                fips        TEXT,
+                latitude    REAL,
+                longitude   REAL,
+                population  INTEGER
             );
             CREATE UNIQUE INDEX place_unique ON place(kind, state, name);
+            CREATE INDEX place_by_kind ON place(kind);
+            CREATE INDEX place_by_state ON place(state);
 
             CREATE TABLE rating (
                 module_id  TEXT NOT NULL REFERENCES module(id),
@@ -366,13 +372,34 @@ def write_sqlite(modules: list[dict]) -> None:
             CREATE INDEX rating_by_place  ON rating(place_id);
         """)
 
-        # places: every US state + DC
+        # State rows (50 + DC).
         for name, fips in sorted(STATE_FIPS.items()):
             cur.execute(
-                "INSERT INTO place (kind, state, name, fips) VALUES ('state', ?, ?, ?)",
+                """INSERT INTO place (kind, state, name, fips, population)
+                   VALUES ('state', ?, ?, ?, NULL)""",
                 (name, name, fips),
             )
 
+        # City rows from GeoNames — every incorporated US populated place.
+        try:
+            print("\nLoading cities from GeoNames...")
+            cities = geonames_cities.fetch_cities()
+            print(f"  {len(cities):,} cities")
+            cur.executemany(
+                """INSERT OR IGNORE INTO place
+                   (kind, state, name, latitude, longitude, population)
+                   VALUES ('city', ?, ?, ?, ?, ?)""",
+                [
+                    (c["state"], c["name"], c["latitude"], c["longitude"], c["population"])
+                    for c in cities
+                ],
+            )
+        except Exception:
+            print("  [WARN] city load failed — continuing with states only")
+            traceback.print_exc()
+
+        # State-level place_id lookup for the module data insert below.
+        # (City ratings come in later phases.)
         place_id = {
             row[0]: row[1]
             for row in cur.execute(

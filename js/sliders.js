@@ -121,14 +121,9 @@ function _categoryCount(group) {
 
 function _renderRow(m) {
     const row = document.createElement("div");
-    row.className = "slider-row";
+    row.className = "slider-row compact";
     row.dataset.moduleId = m.id;
-
-    const labelLine = document.createElement("div");
-    labelLine.className = "label-line";
-
-    const left = document.createElement("span");
-    left.className = "label-left";
+    if (m.description) row.title = m.description;
 
     const toggle = document.createElement("button");
     toggle.type = "button";
@@ -140,14 +135,7 @@ function _renderRow(m) {
     const label = document.createElement("span");
     label.className = "label";
     label.textContent = m.label;
-
-    left.append(toggle, label);
-
-    const weight = document.createElement("span");
-    weight.className = "weight";
-    weight.textContent = String(DEFAULT_WEIGHT);
-
-    labelLine.append(left, weight);
+    if (m.description) label.title = m.description;
 
     const slider = document.createElement("input");
     slider.type = "range";
@@ -155,10 +143,16 @@ function _renderRow(m) {
     slider.max = "100";
     slider.step = "1";
     slider.value = String(DEFAULT_WEIGHT);
+    slider.title = m.description || "";
 
-    const desc = document.createElement("p");
+    const weight = document.createElement("span");
+    weight.className = "weight";
+    weight.textContent = String(DEFAULT_WEIGHT);
+
+    // (No separate description element — it lives on the row's title attr.)
+    const desc = document.createElement("span");
     desc.className = "description";
-    desc.textContent = m.description || "";
+    desc.textContent = "";  // kept for backwards-compat with _setEnabled queries
 
     slider.addEventListener("input", () => {
       const v = Number(slider.value);
@@ -189,7 +183,7 @@ function _renderRow(m) {
       if (_listener) _listener();
     });
 
-    row.append(labelLine, slider, desc);
+    row.append(toggle, label, slider, weight);
     return row;
 }
 
