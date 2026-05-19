@@ -3,7 +3,11 @@
 
 import { initTheme } from "./theme.js";
 import { loadDatabase, listModules, computeRanking } from "./data.js";
-import { renderSliders, getWeights, onWeightsChange, resetWeights, randomizeWeights } from "./sliders.js";
+import {
+  renderSliders, getWeights, onWeightsChange,
+  resetWeights, randomizeWeights, applyWeights,
+} from "./sliders.js";
+import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { renderMap, updateMap } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
@@ -32,12 +36,17 @@ const errBox = (msg) => {
     renderSliders(modules);
     renderMap(topology);
 
+    // Apply weights from URL hash if present.
+    const initial = readHash();
+    if (initial) applyWeights(initial);
+
     const refresh = () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
       const ranking = computeRanking(db, weights);
       updateMap(ranking);
       renderRanking(ranking, enabled.length);
+      writeHash(weights);
     };
 
     onWeightsChange(refresh);
@@ -48,6 +57,23 @@ const errBox = (msg) => {
     document.getElementById("randomize-weights").addEventListener("click", () => {
       randomizeWeights();
       refresh();
+    });
+    document.getElementById("share-link").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const orig = btn.textContent;
+      const ok = await copyShareLink();
+      btn.textContent = ok ? "✓ Copied" : "✗ Couldn't copy";
+      setTimeout(() => { btn.textContent = orig; }, 1400);
+    });
+
+    // Sync map/ranking if user manually edits the hash (e.g. paste a shared
+    // link in the same tab).
+    window.addEventListener("hashchange", () => {
+      const next = readHash();
+      if (next) {
+        applyWeights(next);
+        refresh();
+      }
     });
 
     refresh();

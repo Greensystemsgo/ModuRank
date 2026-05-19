@@ -185,4 +185,22 @@ export function randomizeWeights() {
   }
 }
 
+// Apply a {moduleId: weight} map from a shared URL.
+export function applyWeights(weightMap) {
+  for (const m of _modules) {
+    const row = document.querySelector(`.slider-row[data-module-id="${m.id}"]`);
+    if (!row) continue;
+    const v = weightMap[m.id];
+    if (v === undefined) continue;
+    row.querySelector("input").value = String(v);
+    row.querySelector(".weight").textContent = v === 0 ? "off" : String(v);
+    if (v > 0) {
+      _lastWeight.set(m.id, v);
+      _setEnabled(row, true);
+    } else {
+      _setEnabled(row, false);
+    }
+  }
+}
+
 export function onWeightsChange(fn) { _listener = fn; }
