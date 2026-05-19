@@ -18,7 +18,12 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
       : `${activeFactors} factor${activeFactors === 1 ? "" : "s"} active`;
   }
 
-  ranking.forEach((r, idx) => {
+  // Cap to top 15 by default; user can expand. Keeps the column scannable.
+  const COLLAPSED_LIMIT = 15;
+  const expanded = ol.dataset.expanded === "1";
+  const visible = expanded ? ranking : ranking.slice(0, COLLAPSED_LIMIT);
+
+  visible.forEach((r, idx) => {
     const li = document.createElement("li");
     if (idx < 3 && (mode === "single" || activeFactors > 0)) li.classList.add("top-rank");
     if (mode === "weighted" && activeFactors === 0) li.classList.add("disabled");
@@ -52,6 +57,23 @@ export function renderRanking(ranking, activeFactors, opts = {}) {
     li.append(rank, name, score, pinBtn);
     ol.append(li);
   });
+
+  // "Show all" expander
+  if (ranking.length > COLLAPSED_LIMIT) {
+    const li = document.createElement("li");
+    li.className = "ranking-expand";
+    const btn = document.createElement("button");
+    btn.className = "btn-secondary";
+    btn.textContent = expanded
+      ? `Show top 15`
+      : `Show all ${ranking.length}`;
+    btn.addEventListener("click", () => {
+      ol.dataset.expanded = expanded ? "0" : "1";
+      renderRanking(ranking, activeFactors, opts);
+    });
+    li.append(btn);
+    ol.append(li);
+  }
 }
 
 function _fmt(v) {

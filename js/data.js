@@ -1,12 +1,40 @@
 // SQLite data layer. One DB load on boot; everything queries against it.
 
+let _SQL = null;
+
 export async function loadDatabase({ sqlJsLocate, dbUrl }) {
-  const SQL = await window.initSqlJs({ locateFile: sqlJsLocate });
+  _SQL = await window.initSqlJs({ locateFile: sqlJsLocate });
   const buf = await fetch(dbUrl).then((r) => {
     if (!r.ok) throw new Error(`fetch ${dbUrl}: HTTP ${r.status}`);
     return r.arrayBuffer();
   });
-  return new SQL.Database(new Uint8Array(buf));
+  return new _SQL.Database(new Uint8Array(buf));
+}
+
+// Lazy-load the cities DB (13 MB) — called the first time a state is focused.
+let _citiesDbPromise = null;
+export function loadCitiesDatabase(dbUrl) {
+  if (_citiesDbPromise) return _citiesDbPromise;
+  _citiesDbPromise = (async () => {
+    if (!_SQL) throw new Error("sql.js not initialized yet");
+    const buf = await fetch(dbUrl).then((r) => {
+      if (!r.ok) throw new Error(`fetch ${dbUrl}: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    });
+    return new _SQL.Database(new Uint8Array(buf));
+  })();
+  return _citiesDbPromise;
+}
+
+export function getCitiesInState(citiesDb, stateName) {
+  const stmt = citiesDb.prepare(
+    "SELECT name, latitude, longitude, population FROM city WHERE state = :state ORDER BY population DESC"
+  );
+  stmt.bind({ ":state": stateName });
+  const out = [];
+  while (stmt.step()) out.push(stmt.getAsObject());
+  stmt.free();
+  return out;
 }
 
 export function listModules(db) {

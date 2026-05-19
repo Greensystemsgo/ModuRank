@@ -10,13 +10,14 @@ import {
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
 import { renderCompare, onChange as onPinChange } from "./compare.js";
-import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState } from "./map.js";
+import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl } from "./map.js";
 import { renderRanking } from "./ranking.js";
 
 initTheme();
 
 const SQL_WASM_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
 const DB_URL = "data/moduRank.sqlite";
+const CITIES_DB_URL = "data/moduRank_cities.sqlite";
 const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
 
 const errBox = (msg) => {
@@ -38,6 +39,7 @@ const errBox = (msg) => {
     const modulesById = new Map(modules.map((m) => [m.id, m]));
     renderSliders(modules);
     renderMap(topology);
+    setCitiesDbUrl(CITIES_DB_URL);
     _populatePresets();
     _populateSortBy(modules);
 

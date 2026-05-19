@@ -2,7 +2,7 @@
 // State choropleth via GeoJSON layer; click a state to focus on it (zoom in,
 // fire onFocus callback). Hover for full per-state breakdown tooltip.
 
-import { getStateBreakdown } from "./data.js";
+import { getStateBreakdown, loadCitiesDatabase, getCitiesInState } from "./data.js";
 
 let _map = null;
 let _tileLayer = null;
@@ -16,6 +16,8 @@ let _db = null;
 let _weightsByModule = new Map();
 let _onFocus = null;
 let _focusedState = null;
+let _citiesDbUrl = null;
+let _citiesDb = null;
 
 // Wide enough to fit continental US + Hawaii in the default view.
 // Alaska remains reachable by panning north. (Real-geography Leaflet
@@ -71,6 +73,10 @@ export function setBreakdownContext(db, weights) {
 
 export function onFocusChange(fn) {
   _onFocus = fn;
+}
+
+export function setCitiesDbUrl(url) {
+  _citiesDbUrl = url;
 }
 
 export function renderMap(topology) {
@@ -262,7 +268,7 @@ export function updateMap(ranking) {
   if (_stateLayer) _stateLayer.setStyle(_styleState);
 }
 
-function _focusState(feature, layer) {
+async function _focusState(feature, layer) {
   const name = feature.properties.name;
   if (_focusedState === name) {
     _clearFocus();
@@ -274,14 +280,88 @@ function _focusState(feature, layer) {
   _hideTip();
   _updateFocusChip();
   if (_onFocus) _onFocus(name);
+  await _renderCitiesForFocus(name);
 }
 
 function _clearFocus() {
   _focusedState = null;
   _map.fitBounds(CONTINENTAL_BOUNDS);
   if (_stateLayer) _stateLayer.setStyle(_styleState);
+  if (_cityLayer) {
+    _map.removeLayer(_cityLayer);
+    _cityLayer = null;
+  }
   _updateFocusChip();
   if (_onFocus) _onFocus(null);
+}
+
+async function _renderCitiesForFocus(stateName) {
+  if (_cityLayer) {
+    _map.removeLayer(_cityLayer);
+    _cityLayer = null;
+  }
+  if (!_citiesDbUrl) return;
+
+  // First focus triggers the lazy 13 MB cities-DB fetch.
+  if (!_citiesDb) {
+    _showLoading();
+    try {
+      _citiesDb = await loadCitiesDatabase(_citiesDbUrl);
+    } catch (err) {
+      console.error(err);
+      _hideLoading();
+      return;
+    }
+    _hideLoading();
+  }
+
+  const cities = getCitiesInState(_citiesDb, stateName);
+  if (!cities.length) return;
+
+  // Sort by population so the smallest cities draw first (largest on top).
+  const maxPop = Math.max(...cities.map((c) => c.population || 1));
+  const minRadius = 2.5;
+  const maxRadius = 9;
+
+  const markers = cities.map((c) => {
+    const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
+    const radius = minRadius + (maxRadius - minRadius) * t;
+    const marker = L.circleMarker([c.latitude, c.longitude], {
+      radius,
+      color: "#1a1a1f",
+      weight: 1,
+      fillColor: "var(--accent)",
+      fillOpacity: 0.85,
+      pane: "markerPane",
+    });
+    marker.bindTooltip(
+      `<strong>${c.name}, ${c.state}</strong><br/>` +
+      (c.population ? `pop ${c.population.toLocaleString()}` : "<em>population unknown</em>"),
+      { direction: "top", offset: [0, -4], sticky: true, className: "city-tooltip" }
+    );
+    // Override fill via direct DOM tweak since L doesn't read CSS vars
+    return marker;
+  });
+
+  _cityLayer = L.layerGroup(markers, { pane: "markerPane" }).addTo(_map);
+
+  // Compute the actual accent color from CSS to apply to markers.
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2f6df6";
+  markers.forEach((m) => m.setStyle({ fillColor: accent, color: accent }));
+}
+
+function _showLoading() {
+  const tip = document.getElementById("map-tooltip");
+  tip.innerHTML = `<div class="tip-state">Loading cities…</div><div class="tip-row"><span class="k">~13 MB, one-time</span></div>`;
+  tip.style.left = "50%";
+  tip.style.top = "30%";
+  tip.style.transform = "translate(-50%, 0)";
+  tip.classList.add("visible");
+}
+function _hideLoading() {
+  const tip = document.getElementById("map-tooltip");
+  tip.style.transform = "";
+  tip.classList.remove("visible");
 }
 
 function _updateFocusChip() {

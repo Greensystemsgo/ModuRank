@@ -221,13 +221,26 @@ html, body {
 /* ---- Map ---- */
 .map-wrap {
   width: 100%;
-  height: 520px;
+  height: 440px;
   position: relative;
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
 }
-@media (max-width: 700px) { .map-wrap { height: 380px; } }
+@media (max-width: 700px) { .map-wrap { height: 340px; } }
+
+/* City marker tooltip — small + theme-aware */
+.leaflet-tooltip.city-tooltip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  box-shadow: var(--shadow);
+  border-radius: 6px;
+}
+.leaflet-tooltip.city-tooltip::before { border-top-color: var(--border); }
 
 /* Leaflet overrides to match the app theme */
 .leaflet-container { background: var(--bg); font-family: inherit; }
@@ -626,6 +639,14 @@ input[type="range"] {
 .ranking li .pin-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .ranking li.pinned { box-shadow: inset 3px 0 0 var(--accent); }
 .ranking li.pinned .pin-btn { background: var(--accent); color: var(--bg-card); border-color: var(--accent); }
+
+.ranking li.ranking-expand {
+  border: none;
+  background: transparent;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
 
 /* Compare card */
 .compare-card.hidden { display: none; }

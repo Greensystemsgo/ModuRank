@@ -44,6 +44,7 @@ SRC = Path("C:/Users/NCorriveau/dev/scrapewiki")
 DATA_DIR = ROOT / "data"
 MODULES_DIR = DATA_DIR / "modules"
 DB_PATH = DATA_DIR / "moduRank.sqlite"
+CITIES_DB_PATH = DATA_DIR / "moduRank_cities.sqlite"
 
 MODULES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -380,28 +381,9 @@ def write_sqlite(modules: list[dict]) -> None:
                 (name, name, fips),
             )
 
-        # City rows from GeoNames — opt-in via env var while the Leaflet UI
-        # is still under construction. Loading 155k cities balloons the
-        # SQLite from ~250KB to ~19MB and there's no UI to render them yet.
-        if os.environ.get("MODURANK_LOAD_CITIES") == "1":
-            try:
-                print("\nLoading cities from GeoNames...")
-                cities = geonames_cities.fetch_cities()
-                print(f"  {len(cities):,} cities")
-                cur.executemany(
-                    """INSERT OR IGNORE INTO place
-                       (kind, state, name, latitude, longitude, population)
-                       VALUES ('city', ?, ?, ?, ?, ?)""",
-                    [
-                        (c["state"], c["name"], c["latitude"], c["longitude"], c["population"])
-                        for c in cities
-                    ],
-                )
-            except Exception:
-                print("  [WARN] city load failed — continuing with states only")
-                traceback.print_exc()
-        else:
-            print("\nSkipping city load (set MODURANK_LOAD_CITIES=1 to enable)")
+        # Cities are written to a separate moduRank_cities.sqlite so the
+        # primary states DB stays small (instant page load); the frontend
+        # lazy-loads cities only when a state is focused.
 
         # State-level place_id lookup for the module data insert below.
         # (City ratings come in later phases.)
@@ -441,6 +423,54 @@ def write_sqlite(modules: list[dict]) -> None:
         conn.close()
 
 
+def write_cities_sqlite() -> None:
+    """Separate SQLite file containing just city geometry/metadata.
+
+    Lazy-loaded by the frontend the first time the user focuses a state.
+    Per-city rating data will live here too once the per-city fetchers
+    land.
+    """
+    if not os.environ.get("MODURANK_LOAD_CITIES") == "1":
+        print("\nSkipping cities DB (set MODURANK_LOAD_CITIES=1 to enable)")
+        return
+    try:
+        print("\nLoading cities from GeoNames...")
+        cities = geonames_cities.fetch_cities()
+        print(f"  {len(cities):,} cities")
+    except Exception:
+        print("  [WARN] city fetch failed")
+        traceback.print_exc()
+        return
+
+    if CITIES_DB_PATH.exists():
+        CITIES_DB_PATH.unlink()
+    conn = sqlite3.connect(CITIES_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.executescript("""
+            CREATE TABLE city (
+                id          INTEGER PRIMARY KEY,
+                state       TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                latitude    REAL NOT NULL,
+                longitude   REAL NOT NULL,
+                population  INTEGER
+            );
+            CREATE INDEX city_by_state ON city(state);
+            CREATE INDEX city_by_name  ON city(name);
+        """)
+        cur.executemany(
+            "INSERT INTO city (state, name, latitude, longitude, population) VALUES (?, ?, ?, ?, ?)",
+            [(c["state"], c["name"], c["latitude"], c["longitude"], c["population"]) for c in cities],
+        )
+        conn.commit()
+        cur.execute("VACUUM")
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"  {CITIES_DB_PATH.relative_to(ROOT)}  ({CITIES_DB_PATH.stat().st_size // 1024} KB)")
+
+
 def main() -> None:
     print("Static-source modules:")
     modules = build_modules()
@@ -456,6 +486,7 @@ def main() -> None:
 
     write_json(modules)
     write_sqlite(modules)
+    write_cities_sqlite()
     total_ratings = sum(len(m["data"]) for m in modules)
     print(f"\nBuilt {len(modules)} modules, {total_ratings} ratings")
     print(f"  {DB_PATH.relative_to(ROOT)}  ({DB_PATH.stat().st_size // 1024} KB)")
