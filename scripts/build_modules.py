@@ -467,11 +467,28 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
         print("  [WARN] Census places fetch failed")
         traceback.print_exc()
 
+    # Derived: city-level elevation as a module.
+    elev_data: dict[tuple[str, str], float] = {}
+    for c in cities:
+        if c.get("elevation_m") is not None:
+            elev_data[(c["state"], c["name"])] = float(c["elevation_m"])
+    if elev_data:
+        city_modules.append({
+            "id": "elevation",
+            "label": "Elevation",
+            "description": "Above sea level, meters (GeoNames). Higher = mountain town, lower = coastal / valley.",
+            "unit": "m",
+            "lower_is_better": False,
+            "data": elev_data,
+        })
+        print(f"  [GeoNames] elevation ({len(elev_data):,} cities)")
+
     # Pull per-city climate (grid-cached Open-Meteo).
     if os.environ.get("MODURANK_LOAD_CITY_WEATHER") == "1":
-        print("\nFetching per-city climate (Open-Meteo grid)...")
+        cache_only = os.environ.get("MODURANK_LOAD_CITY_WEATHER_CACHE_ONLY") == "1"
+        print(f"\nFetching per-city climate (Open-Meteo grid, cache_only={cache_only})...")
         try:
-            climate_modules = open_meteo_grid.fetch_city_climate(cities)
+            climate_modules = open_meteo_grid.fetch_city_climate(cities, cache_only=cache_only)
             for m in climate_modules:
                 print(f"  [Open-Meteo grid] {m['id']} ({len(m['data']):,} cities)")
             city_modules.extend(climate_modules)
@@ -510,7 +527,8 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
                 name        TEXT NOT NULL,
                 latitude    REAL NOT NULL,
                 longitude   REAL NOT NULL,
-                population  INTEGER
+                population  INTEGER,
+                elevation_m INTEGER
             );
             CREATE INDEX city_by_state ON city(state);
             CREATE INDEX city_by_name  ON city(name);
@@ -545,8 +563,8 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
             CREATE INDEX state_rating_by_module ON state_rating(module_id);
         """)
         cur.executemany(
-            "INSERT INTO city (state, name, latitude, longitude, population) VALUES (?, ?, ?, ?, ?)",
-            [(c["state"], c["name"], c["latitude"], c["longitude"], c["population"]) for c in cities],
+            "INSERT INTO city (state, name, latitude, longitude, population, elevation_m) VALUES (?, ?, ?, ?, ?, ?)",
+            [(c["state"], c["name"], c["latitude"], c["longitude"], c["population"], c.get("elevation_m")) for c in cities],
         )
 
         # Build (state, name) → city_id lookup. Census place names usually
@@ -603,6 +621,24 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
         n_state_ratings = cur.execute("SELECT COUNT(*) FROM state_rating").fetchone()[0]
         print(f"  [state_rating] {n_state_ratings:,} state rows mirrored")
 
+        # Trim cities with absolutely no signal: population 0 AND no
+        # ratings at all. Those are GeoNames ghost-town placeholders
+        # (abandoned mining camps, etc.) that just bloat the file.
+        cur.execute("""
+            DELETE FROM city
+            WHERE (population IS NULL OR population = 0)
+              AND id NOT IN (SELECT DISTINCT city_id FROM city_rating)
+        """)
+        deleted = cur.rowcount
+        print(f"  [trim] dropped {deleted:,} cities with no signal")
+
+        # Also drop the city_rating module-only index — the PK already
+        # covers (module_id, city_id) prefix queries.
+        cur.execute("DROP INDEX IF EXISTS city_rating_by_module")
+
+        conn.commit()
+        # Tighter page_size + VACUUM for a smaller file.
+        cur.execute("PRAGMA page_size = 1024")
         conn.commit()
         cur.execute("VACUUM")
         conn.commit()

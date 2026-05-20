@@ -28,7 +28,7 @@ export function loadCitiesDatabase(dbUrl) {
 
 export function getCitiesInState(citiesDb, stateName) {
   const stmt = citiesDb.prepare(
-    "SELECT id, name, latitude, longitude, population FROM city WHERE state = :state ORDER BY population DESC"
+    "SELECT id, name, latitude, longitude, population, elevation_m FROM city WHERE state = :state ORDER BY population DESC"
   );
   stmt.bind({ ":state": stateName });
   const out = [];

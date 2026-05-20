@@ -86,7 +86,7 @@ def fetch_cities(min_pop: int = 0) -> list[dict]:
         if not line:
             continue
         parts = line.split("\t")
-        if len(parts) < 15:
+        if len(parts) < 17:
             continue
         if parts[6] != "P":
             continue
@@ -106,12 +106,24 @@ def fetch_cities(min_pop: int = 0) -> list[dict]:
         state = USPS_TO_STATE.get(parts[10])
         if not state:
             continue
+        # Elevation: prefer column 15 (explicit), else column 16 (DEM).
+        elevation = None
+        for col in (15, 16):
+            try:
+                v = int(parts[col])
+                # GeoNames uses -9999 for "no data". Filter that out.
+                if v > -1000:
+                    elevation = v
+                    break
+            except (ValueError, IndexError):
+                continue
         out.append({
             "name": parts[1],
             "state": state,
             "latitude": lat,
             "longitude": lon,
             "population": pop,
+            "elevation_m": elevation,
             "feature_code": parts[7],
         })
 

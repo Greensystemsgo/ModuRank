@@ -24,7 +24,7 @@ def _round_to_grid(lat: float, lon: float) -> tuple[float, float]:
             round(lon / GRID_SIZE) * GRID_SIZE)
 
 
-def _fetch_cell(lat: float, lon: float) -> dict | None:
+def _fetch_cell(lat: float, lon: float, cache_only: bool = False) -> dict | None:
     url = (
         "https://archive-api.open-meteo.com/v1/archive"
         f"?latitude={lat}&longitude={lon}"
@@ -38,8 +38,8 @@ def _fetch_cell(lat: float, lon: float) -> dict | None:
     )
     key = f"open_meteo_grid_{YEAR}_{lat}_{lon}.json"
     try:
-        body = cached_get(url, key)
-    except Exception as e:
+        body = cached_get(url, key, cache_only=cache_only)
+    except Exception:
         return None
     try:
         return json.loads(body)
@@ -47,7 +47,7 @@ def _fetch_cell(lat: float, lon: float) -> dict | None:
         return None
 
 
-def fetch_city_climate(cities: list[dict]) -> list[dict]:
+def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dict]:
     """Return per-city climate values for the 5 weather modules.
 
     Cities → grouped by grid cell → one API call per unique cell.
@@ -69,9 +69,9 @@ def fetch_city_climate(cities: list[dict]) -> list[dict]:
     rain:     dict[tuple[str, str], float] = {}
 
     for i, ((lat, lon), city_list) in enumerate(cells.items()):
-        if i % 50 == 0:
-            print(f"    cell {i}/{len(cells)}  ({lat:+.1f}, {lon:+.1f})  -> {len(city_list)} cities")
-        payload = _fetch_cell(lat, lon)
+        if i % 200 == 0:
+            print(f"    cell {i}/{len(cells)}  ({lat:+.1f}, {lon:+.1f})  -> {len(city_list)} cities", flush=True)
+        payload = _fetch_cell(lat, lon, cache_only=cache_only)
         if not payload:
             continue
         daily = payload.get("daily") or {}
