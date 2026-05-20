@@ -392,6 +392,16 @@ html, body {
 }
 .focus-chip.hidden { display: none; }
 .focus-chip .focus-label { color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+.focus-state-score {
+  background: var(--accent);
+  color: var(--bg-card);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.focus-state-score.hidden { display: none; }
 .focus-clear {
   background: transparent;
   border: none;

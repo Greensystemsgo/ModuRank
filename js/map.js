@@ -282,6 +282,8 @@ export function updateMap(ranking) {
     _ranksByName.set(r.state, idx + 1);
   });
   if (_stateLayer) _stateLayer.setStyle(_styleState);
+  // Refresh chip with new score when weights change.
+  _updateFocusChip();
 }
 
 async function _focusState(feature, layer) {
@@ -496,8 +498,17 @@ function _hideLoading() {
 function _updateFocusChip() {
   const chip = document.getElementById("focus-chip");
   const name = document.getElementById("focus-state-name");
+  const scoreEl = document.getElementById("focus-state-score");
   if (_focusedState) {
     name.textContent = _focusedState;
+    const r = _scoresByName.get(_focusedState);
+    const rank = _ranksByName.get(_focusedState);
+    if (r && r.factors > 0 && rank) {
+      scoreEl.textContent = `#${rank} · ${(r.score * 100).toFixed(1)}`;
+      scoreEl.classList.remove("hidden");
+    } else {
+      scoreEl.classList.add("hidden");
+    }
     chip.classList.remove("hidden");
   } else {
     chip.classList.add("hidden");
