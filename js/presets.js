@@ -62,6 +62,7 @@ export const PRESETS = {
     description: "Mountains, public land, sunshine. Population density doesn't matter.",
     weights: {
       public_lands: 100,
+      elevation: 70,
       sunshine_hours: 70,
       avg_temperature: 30,
       precipitation: 30,
@@ -307,8 +308,9 @@ export const PRESETS = {
   },
 
   "Mountain Time": {
-    description: "Public lands, low density, outdoor freedom. CO, WY, MT, ID, NM territory.",
+    description: "Public lands, low density, elevation, outdoor freedom. CO, WY, MT, ID, NM territory.",
     weights: {
+      elevation: 100,             // mountain country
       public_lands: 100,
       population_density: 90,     // lower = better, rural
       sunshine_hours: 70,
