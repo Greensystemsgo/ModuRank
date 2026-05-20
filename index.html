@@ -109,7 +109,47 @@
 
   <footer class="app-footer">
     <span>ModuRank &middot; static data, no APIs hit at runtime</span>
+    <span class="footer-sep">·</span>
+    <button id="open-about" class="footer-link">How it works</button>
+    <span class="footer-sep">·</span>
+    <a href="https://github.com/Greensystemsgo/ModuRank" target="_blank" rel="noopener" class="footer-link">Source on GitHub</a>
   </footer>
+
+  <div id="about-modal" class="about-modal hidden" role="dialog" aria-labelledby="about-title">
+    <div class="about-modal-backdrop"></div>
+    <div class="about-modal-panel">
+      <button id="about-close" class="about-close" aria-label="Close">×</button>
+      <h2 id="about-title">How ModuRank works</h2>
+      <p>Slide the dials, the map and ranking update live. Click a state to drill into its cities. Click cities (or use the Pin button) to compare them side-by-side.</p>
+
+      <h3>Scoring</h3>
+      <p>For each module, every state's value is min-max normalized into 0–1 (1 = best in the country, 0 = worst). Your weighted score is the weighted average of those normalized values across modules you have turned on. Map colors are <b>rank-based</b> — the top-ranked state is full green regardless of the absolute score gap.</p>
+
+      <h3>City scoring</h3>
+      <p>Cities are scored the same way. Modules with their own per-city data (income, rent, home value, education, climate, air quality) use the city's actual value. Modules with state-only data (taxes, gun friendliness, life expectancy, etc.) inherit from the city's state — marked <em>(state)</em> in the tooltip. Every city ends up scored across every module.</p>
+
+      <h3>Data sources</h3>
+      <ul class="about-sources">
+        <li><b>Census Bureau ACS 5-year</b> — income, home value, rent, population, density, age, education, broadband, commute, uninsured (state + city level)</li>
+        <li><b>BLS LAUS</b> — unemployment rate (state)</li>
+        <li><b>Open-Meteo</b> — temperature, feels-like, humidity, sunshine, precipitation (state capital + per-city grid)</li>
+        <li><b>OpenWeather Air Pollution</b> — PM2.5 air quality (per-city grid)</li>
+        <li><b>Redfin Data Center</b> — median sale price, days on market, $/sqft, inventory (state)</li>
+        <li><b>CDC NCHS 2021</b> — life expectancy (state)</li>
+        <li><b>FBI UCR 2022</b> — violent crime rate (state; FL/MD/PA omitted due to NIBRS non-reporting)</li>
+        <li><b>Tax Foundation 2023</b> — effective property tax rate (state)</li>
+        <li><b>World Population Review / FEMA</b> — cost of living, sales tax, income tax, home insurance, public lands, humidity, UV exposure, natural disasters (state)</li>
+        <li><b>GeoNames US bulk dump (CC-BY)</b> — 155k US incorporated places with lat/lon and population</li>
+        <li><b>us-atlas / d3</b> — state polygons; <b>Leaflet</b> + Carto + Esri — base tiles</li>
+      </ul>
+
+      <h3>Direction flip</h3>
+      <p>Each slider has a small ↑/↓ button. By default each module has a "natural" better direction (lower taxes = better, higher income = better). Click the arrow to flip — e.g. if you want <em>more</em> humidity instead of less, click Humidity's ↓ → becomes ↑.</p>
+
+      <h3>Privacy / runtime</h3>
+      <p>Everything runs in your browser. The SQLite databases are downloaded once (~250 KB up front, +60 MB lazily when you focus your first state) and cached normally. No API calls at runtime; no analytics; no tracking. Pin and theme state lives in your browser's localStorage.</p>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/topojson-client@3"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"

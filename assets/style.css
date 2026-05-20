@@ -946,6 +946,86 @@ input[type="range"] {
   color: var(--text-muted);
   font-size: 12px;
   padding: 24px 16px 32px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.footer-link {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+  font-family: inherit;
+}
+.footer-link:hover { text-decoration: underline; }
+.footer-sep { color: var(--border); }
+
+/* About modal */
+.about-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.about-modal.hidden { display: none; }
+.about-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+.about-modal-panel {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px 32px 24px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.about-modal-panel h2 { margin: 0 0 8px; font-size: 22px; }
+.about-modal-panel h3 {
+  margin: 22px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.about-modal-panel p, .about-modal-panel ul { margin: 0 0 8px; }
+.about-modal-panel ul { padding-left: 18px; }
+.about-modal-panel li { margin-bottom: 4px; }
+.about-modal-panel b { color: var(--text); font-weight: 600; }
+.about-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.about-close:hover { background: var(--accent-soft); color: var(--accent); }
+@media (max-width: 700px) {
+  .about-modal-panel { padding: 20px 18px; font-size: 13px; }
+  .about-modal-panel h2 { font-size: 18px; }
 }
 
 @media (max-width: 600px) {

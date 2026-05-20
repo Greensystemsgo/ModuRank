@@ -131,6 +131,7 @@ const errBox = (msg) => {
     onPinChange(() => refresh());
 
     _initOnboarding();
+    _initAboutModal();
 
     onWeightsChange(refresh);
     onFocusChange((stateName) => {
@@ -282,6 +283,25 @@ function _fmtCompact(v) {
   if (Math.abs(v) >= 100)   return v.toLocaleString(undefined, { maximumFractionDigits: 1 });
   if (Math.abs(v) >= 1)     return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function _initAboutModal() {
+  const modal = document.getElementById("about-modal");
+  if (!modal) return;
+  const open = () => {
+    modal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  };
+  const close = () => {
+    modal.classList.add("hidden");
+    document.body.style.overflow = "";
+  };
+  document.getElementById("open-about").addEventListener("click", open);
+  document.getElementById("about-close").addEventListener("click", close);
+  modal.querySelector(".about-modal-backdrop").addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) close();
+  });
 }
 
 function _initOnboarding() {
