@@ -53,17 +53,19 @@ export function computeCityRanking(citiesDb, weights, stateName) {
   }
 
   const weightJson = JSON.stringify(
-    Object.fromEntries(active.map((w) => [w.id, w.weight])),
+    Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
   const stmt = citiesDb.prepare(`
     WITH w AS (
-      SELECT key AS module_id, CAST(value AS REAL) AS weight
+      SELECT key AS module_id,
+             ABS(CAST(value AS REAL)) AS weight,
+             CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
       FROM json_each(:weights)
     ),
     /* per-city per-module COALESCEd normalized value: city-level wins, else state-level */
     city_x_w AS (
-      SELECT c.id AS city_id, w.module_id, w.weight,
+      SELECT c.id AS city_id, w.module_id, w.weight, w.flipped,
              COALESCE(cr.normalized, sr.normalized) AS normalized
       FROM city c
       CROSS JOIN w
@@ -73,7 +75,9 @@ export function computeCityRanking(citiesDb, weights, stateName) {
     ),
     contrib AS (
       SELECT city_id,
-             SUM(CASE WHEN normalized IS NOT NULL THEN normalized * weight ELSE 0 END) AS num,
+             SUM(CASE WHEN normalized IS NOT NULL
+                      THEN (CASE WHEN flipped = 1 THEN 1.0 - normalized ELSE normalized END) * weight
+                      ELSE 0 END) AS num,
              SUM(CASE WHEN normalized IS NOT NULL THEN weight ELSE 0 END) AS den,
              SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors
       FROM city_x_w
@@ -141,7 +145,9 @@ export function listModules(db) {
 }
 
 // Compute a weighted score per state. Pure SQL — sql.js executes it locally.
-// `weights` is [{ id, weight }, ...]. Modules with weight 0 are ignored.
+// `weights` is [{ id, weight, flipped? }, ...]. Weight 0 = ignored.
+// flipped=true reverses the module's "better direction" — equivalent to
+// using (1 - normalized) instead of normalized for that module.
 export function computeRanking(db, weights) {
   const active = weights.filter((w) => w.weight > 0);
   if (active.length === 0) {
@@ -155,19 +161,23 @@ export function computeRanking(db, weights) {
     })) ?? [];
   }
 
+  // Encode weight + flip flag together. Positive weight = use normalized
+  // as-is; negative weight = use (1 - normalized). |value| is the magnitude.
   const weightJson = JSON.stringify(
-    Object.fromEntries(active.map((w) => [w.id, w.weight])),
+    Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
   const sql = `
     WITH w AS (
-      SELECT key AS module_id, CAST(value AS REAL) AS weight
+      SELECT key AS module_id,
+             ABS(CAST(value AS REAL)) AS weight,
+             CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
       FROM json_each(:weights)
     ),
     contrib AS (
       SELECT
         r.place_id,
-        SUM(r.normalized * w.weight) AS num,
+        SUM((CASE WHEN w.flipped = 1 THEN 1.0 - r.normalized ELSE r.normalized END) * w.weight) AS num,
         SUM(w.weight)                AS den,
         COUNT(*)                     AS factors
       FROM rating r

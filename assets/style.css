@@ -483,11 +483,28 @@ html, body {
 /* Compact one-line slider row: [on/off] [label] [slider] [weight] */
 .slider-row.compact {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) minmax(120px, 1.4fr) 32px;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(120px, 1.4fr) 32px 22px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 4px 0;
 }
+
+.dir-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dir-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .slider-row.compact .label {
   font-size: 13px;
   font-weight: 500;

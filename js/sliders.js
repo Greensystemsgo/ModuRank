@@ -1,5 +1,8 @@
 // Renders one slider per module and exposes weight reads + change listener.
 // Each row has an on/off toggle: off = weight 0 = excluded from scoring.
+// Each row also has a direction toggle: respects the module's natural
+// direction by default, but the user can flip it (e.g., for humidity:
+// default "drier = better" → user flips to "wetter = better").
 
 const DEFAULT_WEIGHT = 50;
 let _modules = [];
@@ -7,6 +10,8 @@ let _listener = null;
 
 // Remembers the last non-zero weight so toggling back on restores it.
 const _lastWeight = new Map();
+// True if the user has flipped this module from its natural direction.
+const _flipped = new Map();
 
 const CATEGORY_ORDER = [
   "Cost & Taxes",
@@ -124,6 +129,7 @@ function _renderRow(m) {
     row.className = "slider-row compact";
     row.dataset.moduleId = m.id;
     if (m.description) row.title = m.description;
+    _flipped.set(m.id, false);
 
     const toggle = document.createElement("button");
     toggle.type = "button";
@@ -148,6 +154,22 @@ function _renderRow(m) {
     const weight = document.createElement("span");
     weight.className = "weight";
     weight.textContent = String(DEFAULT_WEIGHT);
+
+    // Direction button — shows arrow indicating "want HIGH" (↑) or "want LOW" (↓).
+    // Defaults reflect the module's lower_is_better: true → ↓, false → ↑.
+    const dirBtn = document.createElement("button");
+    dirBtn.type = "button";
+    dirBtn.className = "dir-btn";
+    const naturalLow = !!m.lower_is_better;
+    dirBtn.dataset.naturalLow = naturalLow ? "1" : "0";
+    _setDirVisual(dirBtn, naturalLow);
+    dirBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cur = _flipped.get(m.id);
+      _flipped.set(m.id, !cur);
+      _setDirVisual(dirBtn, _effectiveLowerIsBetter(m.id, naturalLow));
+      if (_listener) _listener();
+    });
 
     // (No separate description element — it lives on the row's title attr.)
     const desc = document.createElement("span");
@@ -183,8 +205,20 @@ function _renderRow(m) {
       if (_listener) _listener();
     });
 
-    row.append(toggle, label, slider, weight);
+    row.append(toggle, label, slider, weight, dirBtn);
     return row;
+}
+
+function _effectiveLowerIsBetter(moduleId, naturalLow) {
+  // If user flipped, invert the natural direction.
+  return _flipped.get(moduleId) ? !naturalLow : naturalLow;
+}
+
+function _setDirVisual(btn, lowerIsBetter) {
+  btn.textContent = lowerIsBetter ? "↓" : "↑";
+  btn.title = lowerIsBetter
+    ? "Lower is better — click to flip (more = better)"
+    : "Higher is better — click to flip (less = better)";
 }
 
 function _setEnabled(row, enabled) {
@@ -202,7 +236,12 @@ function _setEnabled(row, enabled) {
 export function getWeights() {
   return _modules.map((m) => {
     const el = document.querySelector(`.slider-row[data-module-id="${m.id}"] input`);
-    return { id: m.id, label: m.label, weight: el ? Number(el.value) : 0 };
+    return {
+      id: m.id,
+      label: m.label,
+      weight: el ? Number(el.value) : 0,
+      flipped: !!_flipped.get(m.id),
+    };
   });
 }
 
