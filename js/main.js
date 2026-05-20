@@ -2,7 +2,7 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, loadCitiesDatabase, listModules, computeRanking, computeSingleFactor, getStateBreakdown, computeCityRanking } from "./data.js";
+import { loadDatabase, loadCitiesIndex, listModules, computeRanking, computeSingleFactor, getStateBreakdown, computeCityRanking } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
   resetWeights, randomizeWeights, applyWeights,
@@ -10,7 +10,7 @@ import {
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
 import { renderCompare, onChange as onPinChange, getPinned, setPins } from "./compare.js";
-import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl, focusStateByName, flyToCity } from "./map.js";
+import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl, focusStateByName, flyToCity, getStateCitiesDb } from "./map.js";
 import { initSearch, setSearchCitiesDb } from "./search.js";
 import { renderRanking } from "./ranking.js";
 
@@ -18,7 +18,8 @@ initTheme();
 
 const SQL_WASM_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
 const DB_URL = "data/moduRank.sqlite";
-const CITIES_DB_URL = "data/moduRank_cities.sqlite";
+const CITIES_INDEX_URL = "data/cities_index.sqlite";
+const CITIES_BASE_URL = "data/cities";  // per-state lazy DBs
 const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
 
 const errBox = (msg) => {
@@ -40,7 +41,7 @@ const errBox = (msg) => {
     const modulesById = new Map(modules.map((m) => [m.id, m]));
     renderSliders(modules);
     renderMap(topology);
-    setCitiesDbUrl(CITIES_DB_URL);
+    setCitiesDbUrl(CITIES_BASE_URL);
     _populatePresets();
     _populateSortBy(modules);
 
@@ -51,7 +52,7 @@ const errBox = (msg) => {
       if (initial.pins) setPins(initial.pins);
     }
 
-    let _citiesDb = null;
+    let _citiesIndexDb = null;
 
     initSearch({
       onSelectState: (name) => focusStateByName(name),
@@ -71,19 +72,13 @@ const errBox = (msg) => {
       updateMap(stateRanking);
 
       // Ranking sidebar switches to cities-in-focused-state when a state
-      // is focused (and we already have the cities DB loaded).
+      // is focused (using the per-state DB that map.js already loaded).
       let displayRanking = stateRanking;
       let displayMode = "weighted";
       if (focused) {
-        if (!_citiesDb) {
-          try {
-            _citiesDb = await loadCitiesDatabase(CITIES_DB_URL);
-            setSearchCitiesDb(_citiesDb);
-          }
-          catch (e) { /* leave _citiesDb null, fall back to states */ }
-        }
-        if (_citiesDb) {
-          const cityRanking = computeCityRanking(_citiesDb, weights, focused)
+        const stateDb = getStateCitiesDb(focused);
+        if (stateDb) {
+          const cityRanking = computeCityRanking(stateDb, weights, focused)
             .filter((c) => c.score != null && c.city_factors > 0)
             .map((c) => ({ state: c.name, score: c.score, factors: c.factors, city_factors: c.city_factors }));
           if (cityRanking.length) {
@@ -112,22 +107,9 @@ const errBox = (msg) => {
       _updateWinnerChip(displayRanking, enabled.length, sortBy);
 
       // Compare card supports both state and city pins.
-      const cityBreakdown = (state, name) => {
-        if (!_citiesDb) return [];
-        // Quick lookup: pull city id then breakdown.
-        const stmt = _citiesDb.prepare("SELECT id FROM city WHERE state = :s AND name = :n");
-        stmt.bind({ ":s": state, ":n": name });
-        let id = null;
-        if (stmt.step()) id = stmt.getAsObject().id;
-        stmt.free();
-        if (id == null) return [];
-        // Inline import not great here — use the data.js function.
-        return import("./data.js").then((m) => m.getCityBreakdown(_citiesDb, id));
-      };
       renderCompare(
         (name) => getStateBreakdown(db, name),
-        // We need a sync function; do the breakdown sync via a helper.
-        (state, name) => _cityBreakdownSync(_citiesDb, state, name),
+        (state, name) => _cityBreakdownSync(null, state, name),
       );
     };
 
@@ -206,7 +188,8 @@ function _populatePresets() {
   }
 }
 
-function _cityBreakdownSync(citiesDb, state, name) {
+function _cityBreakdownSync(_unused, state, name) {
+  const citiesDb = getStateCitiesDb(state);
   if (!citiesDb) return [];
   const stmt = citiesDb.prepare("SELECT id FROM city WHERE state = :s AND name = :n");
   stmt.bind({ ":s": state, ":n": name });

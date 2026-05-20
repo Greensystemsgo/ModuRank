@@ -11,22 +11,45 @@ export async function loadDatabase({ sqlJsLocate, dbUrl }) {
   return new _SQL.Database(new Uint8Array(buf));
 }
 
-// Lazy-load the cities DB (13 MB) — called the first time a state is focused.
-let _citiesDbPromise = null;
-export function loadCitiesDatabase(dbUrl) {
-  if (_citiesDbPromise) return _citiesDbPromise;
-  _citiesDbPromise = (async () => {
+// Cities are now sharded: one lightweight master index for search, plus
+// one self-contained per-state DB for ranking when a state is focused.
+
+let _indexDbPromise = null;
+export function loadCitiesIndex(url) {
+  if (_indexDbPromise) return _indexDbPromise;
+  _indexDbPromise = (async () => {
     if (!_SQL) throw new Error("sql.js not initialized yet");
-    const buf = await fetch(dbUrl).then((r) => {
-      if (!r.ok) throw new Error(`fetch ${dbUrl}: HTTP ${r.status}`);
+    const buf = await fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`fetch ${url}: HTTP ${r.status}`);
       return r.arrayBuffer();
     });
     return new _SQL.Database(new Uint8Array(buf));
   })();
-  return _citiesDbPromise;
+  return _indexDbPromise;
 }
 
+const _stateDbPromises = new Map();
+export function loadStateCitiesDb(stateSlug, baseUrl) {
+  if (_stateDbPromises.has(stateSlug)) return _stateDbPromises.get(stateSlug);
+  const url = `${baseUrl}/${stateSlug}.sqlite`;
+  const p = (async () => {
+    if (!_SQL) throw new Error("sql.js not initialized yet");
+    const buf = await fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`fetch ${url}: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    });
+    return new _SQL.Database(new Uint8Array(buf));
+  })();
+  _stateDbPromises.set(stateSlug, p);
+  return p;
+}
+
+// Backwards-compat alias for the old single-DB API.
+export const loadCitiesDatabase = loadCitiesIndex;
+
 export function getCitiesInState(citiesDb, stateName) {
+  // Works against either the index DB (filters by state) or a per-state
+  // DB (state filter is a no-op since all rows match).
   const stmt = citiesDb.prepare(
     "SELECT id, name, latitude, longitude, population, elevation_m FROM city WHERE state = :state ORDER BY population DESC"
   );

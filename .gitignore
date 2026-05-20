@@ -12,3 +12,8 @@ node_modules/
 # Raw API response cache — rebuilt by scripts/build_modules.py.
 # Don't commit: some files (Redfin TSV) are >20MB and re-fetching is cheap.
 data/raw/
+
+# Monolithic cities DB is built then split into per-state files.
+# We commit the split (data/cities_index.sqlite + data/cities/*.sqlite)
+# but not this intermediate which is 80+ MB.
+data/moduRank_cities.sqlite

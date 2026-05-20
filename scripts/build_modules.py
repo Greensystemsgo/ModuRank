@@ -45,6 +45,8 @@ DATA_DIR = ROOT / "data"
 MODULES_DIR = DATA_DIR / "modules"
 DB_PATH = DATA_DIR / "moduRank.sqlite"
 CITIES_DB_PATH = DATA_DIR / "moduRank_cities.sqlite"
+CITIES_INDEX_PATH = DATA_DIR / "cities_index.sqlite"
+CITIES_PER_STATE_DIR = DATA_DIR / "cities"
 
 MODULES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -683,6 +685,137 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
     finally:
         conn.close()
     print(f"  {CITIES_DB_PATH.relative_to(ROOT)}  ({CITIES_DB_PATH.stat().st_size // 1024} KB)")
+
+    # Split the monolithic cities DB into a small search index + per-state
+    # rating DBs. This makes state focus instant after the index loads
+    # instead of forcing a 90MB first-fetch.
+    _split_cities_db()
+
+
+def _slug(state: str) -> str:
+    return state.lower().replace(" ", "_")
+
+
+def _split_cities_db() -> None:
+    """From CITIES_DB_PATH, write:
+      - cities_index.sqlite  (master: city id+name+state+lat+lon+pop+elev,
+                              all module metadata, state_rating fallback)
+      - cities/<slug>.sqlite (per-state: city_rating rows for that state)
+    """
+    CITIES_PER_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    # Clean prior split outputs.
+    for old in CITIES_PER_STATE_DIR.glob("*.sqlite"):
+        old.unlink()
+    if CITIES_INDEX_PATH.exists():
+        CITIES_INDEX_PATH.unlink()
+
+    src = sqlite3.connect(CITIES_DB_PATH)
+    try:
+        # ----- Master index -----
+        idx = sqlite3.connect(CITIES_INDEX_PATH)
+        idx_cur = idx.cursor()
+        idx_cur.executescript("""
+            CREATE TABLE city (
+                id INTEGER PRIMARY KEY, state TEXT NOT NULL, name TEXT NOT NULL,
+                latitude REAL NOT NULL, longitude REAL NOT NULL,
+                population INTEGER, elevation_m INTEGER
+            );
+            CREATE INDEX city_by_state ON city(state);
+            CREATE INDEX city_by_name  ON city(name);
+
+            CREATE TABLE module (
+                id TEXT PRIMARY KEY, label TEXT NOT NULL,
+                description TEXT, unit TEXT, lower_is_better INTEGER NOT NULL
+            );
+
+            CREATE TABLE state_rating (
+                module_id TEXT NOT NULL, state TEXT NOT NULL,
+                value REAL NOT NULL, normalized REAL NOT NULL,
+                PRIMARY KEY (module_id, state)
+            );
+        """)
+        idx_cur.execute("ATTACH ? AS src", (str(CITIES_DB_PATH),))
+        idx_cur.execute("INSERT INTO city SELECT * FROM src.city")
+        idx_cur.execute("INSERT INTO module SELECT * FROM src.module")
+        idx_cur.execute("INSERT INTO state_rating SELECT * FROM src.state_rating")
+        idx.commit()
+        idx_cur.execute("DETACH src")
+        idx_cur.execute("PRAGMA page_size = 1024")
+        idx.commit()
+        idx_cur.execute("VACUUM")
+        idx.commit()
+        idx.close()
+        print(f"  {CITIES_INDEX_PATH.relative_to(ROOT)}  ({CITIES_INDEX_PATH.stat().st_size // 1024} KB)")
+
+        # ----- Per-state DBs (self-contained: city + city_rating +
+        # state_rating + module — ranking for the focused state can be
+        # answered from this one file alone) -----
+        cur = src.cursor()
+        states = [r[0] for r in cur.execute("SELECT DISTINCT state FROM city ORDER BY state")]
+        total = 0
+        max_size = 0
+        for state in states:
+            slug = _slug(state)
+            out_path = CITIES_PER_STATE_DIR / f"{slug}.sqlite"
+            out = sqlite3.connect(out_path)
+            out_cur = out.cursor()
+            out_cur.executescript("""
+                CREATE TABLE city (
+                    id INTEGER PRIMARY KEY, state TEXT NOT NULL, name TEXT NOT NULL,
+                    latitude REAL NOT NULL, longitude REAL NOT NULL,
+                    population INTEGER, elevation_m INTEGER
+                );
+                CREATE INDEX city_by_name ON city(name);
+
+                CREATE TABLE city_rating (
+                    module_id TEXT NOT NULL, city_id INTEGER NOT NULL,
+                    value REAL NOT NULL, normalized REAL NOT NULL,
+                    PRIMARY KEY (module_id, city_id)
+                );
+                CREATE INDEX city_rating_by_city ON city_rating(city_id);
+
+                CREATE TABLE state_rating (
+                    module_id TEXT NOT NULL, state TEXT NOT NULL,
+                    value REAL NOT NULL, normalized REAL NOT NULL,
+                    PRIMARY KEY (module_id, state)
+                );
+
+                CREATE TABLE module (
+                    id TEXT PRIMARY KEY, label TEXT NOT NULL,
+                    description TEXT, unit TEXT, lower_is_better INTEGER NOT NULL
+                );
+            """)
+            out_cur.execute("ATTACH ? AS src", (str(CITIES_DB_PATH),))
+            out_cur.execute("INSERT INTO city SELECT * FROM src.city WHERE state = ?", (state,))
+            out_cur.execute("""
+                INSERT INTO city_rating
+                SELECT cr.module_id, cr.city_id, cr.value, cr.normalized
+                FROM src.city_rating cr
+                JOIN src.city c ON c.id = cr.city_id
+                WHERE c.state = ?
+            """, (state,))
+            out_cur.execute(
+                "INSERT INTO state_rating SELECT * FROM src.state_rating WHERE state = ?",
+                (state,),
+            )
+            out_cur.execute("INSERT INTO module SELECT * FROM src.module")
+            n_cities = out_cur.execute("SELECT COUNT(*) FROM city").fetchone()[0]
+            n_ratings = out_cur.execute("SELECT COUNT(*) FROM city_rating").fetchone()[0]
+            out.commit()
+            out_cur.execute("DETACH src")
+            out_cur.execute("PRAGMA page_size = 1024")
+            out.commit()
+            out_cur.execute("VACUUM")
+            out.commit()
+            out.close()
+            sz = out_path.stat().st_size
+            total += sz
+            max_size = max(max_size, sz)
+            if state in ("California", "Texas", "Wyoming", "Hawaii"):
+                print(f"    {slug}.sqlite  {n_cities:,} cities  {n_ratings:,} ratings  ({sz // 1024} KB)")
+        print(f"  {len(states)} per-state DBs, total {total // 1024 // 1024} MB, max {max_size // 1024} KB")
+    finally:
+        src.close()
 
 
 def main() -> None:

@@ -2,7 +2,7 @@
 // State choropleth via GeoJSON layer; click a state to focus on it (zoom in,
 // fire onFocus callback). Hover for full per-state breakdown tooltip.
 
-import { getStateBreakdown, loadCitiesDatabase, computeCityRanking, getCityBreakdown } from "./data.js";
+import { getStateBreakdown, loadStateCitiesDb, computeCityRanking, getCityBreakdown } from "./data.js";
 import { isPinned, togglePin } from "./compare.js";
 
 let _map = null;
@@ -17,8 +17,8 @@ let _db = null;
 let _weightsByModule = new Map();
 let _onFocus = null;
 let _focusedState = null;
-let _citiesDbUrl = null;
-let _citiesDb = null;
+let _citiesBaseUrl = null;
+let _stateDbs = new Map();  // state name → loaded sql.js DB for that state
 let _activeWeights = [];
 // 'data' = only cities with at least one rating; 'all' = every geonames entry.
 let _citiesFilter = "data";
@@ -83,7 +83,12 @@ export function onFocusChange(fn) {
 }
 
 export function setCitiesDbUrl(url) {
-  _citiesDbUrl = url;
+  // url is the base path for per-state DBs, e.g. "data/cities".
+  _citiesBaseUrl = url;
+}
+
+function _slug(state) {
+  return state.toLowerCase().replace(/\s+/g, "_");
 }
 
 export function renderMap(topology) {
@@ -376,13 +381,15 @@ async function _renderCitiesForFocus(stateName) {
     _map.removeLayer(_cityLayer);
     _cityLayer = null;
   }
-  if (!_citiesDbUrl) return;
+  if (!_citiesBaseUrl) return;
 
-  // First focus triggers the lazy cities-DB fetch (~29 MB, one-time).
-  if (!_citiesDb) {
-    _showLoading();
+  // Lazy-load this state's small (~1-5MB) self-contained DB.
+  let stateDb = _stateDbs.get(stateName);
+  if (!stateDb) {
+    _showLoading(stateName);
     try {
-      _citiesDb = await loadCitiesDatabase(_citiesDbUrl);
+      stateDb = await loadStateCitiesDb(_slug(stateName), _citiesBaseUrl);
+      _stateDbs.set(stateName, stateDb);
     } catch (err) {
       console.error(err);
       _hideLoading();
@@ -392,7 +399,7 @@ async function _renderCitiesForFocus(stateName) {
   }
 
   // Score each city with the current weights.
-  let cities = computeCityRanking(_citiesDb, _activeWeights, stateName);
+  let cities = computeCityRanking(stateDb, _activeWeights, stateName);
   if (!cities.length) return;
   if (_citiesFilter === "data") {
     // Require at least one city-level factor to qualify — otherwise the
@@ -485,8 +492,9 @@ function _showCityTip(event, city, stateName) {
     html += `<div class="tip-row"><span class="k">Population</span><span class="v">${city.population.toLocaleString()}</span></div>`;
   }
 
-  if (_citiesDb && city.id) {
-    const rows = getCityBreakdown(_citiesDb, city.id);
+  const focusedDb = stateName ? _stateDbs.get(stateName) : null;
+  if (focusedDb && city.id) {
+    const rows = getCityBreakdown(focusedDb, city.id);
     const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
     if (enabled.length) {
       const cityLocal = enabled.filter((r) => !r.inherited).length;
@@ -521,9 +529,9 @@ function _showCityTip(event, city, stateName) {
   _placeTip(tip, event);
 }
 
-function _showLoading() {
+function _showLoading(stateName) {
   const tip = document.getElementById("map-tooltip");
-  tip.innerHTML = `<div class="tip-state">Loading cities…</div><div class="tip-row"><span class="k">~29 MB · one-time fetch, then cached</span></div>`;
+  tip.innerHTML = `<div class="tip-state">Loading ${stateName || "cities"}…</div><div class="tip-row"><span class="k">~1–5 MB · cached after first load</span></div>`;
   tip.style.left = "50%";
   tip.style.top = "30%";
   tip.style.transform = "translate(-50%, 0)";
@@ -577,6 +585,7 @@ function _renderLegend() {
 }
 
 export function getFocusedState() { return _focusedState; }
+export function getStateCitiesDb(stateName) { return _stateDbs.get(stateName); }
 
 // Programmatic focus — used by the search box. Walks the state layer to
 // find the feature, mimics a click.
