@@ -44,6 +44,7 @@ MODULES = [
         "description": f"Median household income (ACS 5-year {YEAR}).",
         "unit": "USD/year",
         "lower_is_better": False,
+        "category": "Economy",
         "vars": ["B19013_001E"],
         "compute": lambda row, idxs: _f(row[idxs["B19013_001E"]]),
     },
@@ -53,6 +54,7 @@ MODULES = [
         "description": f"Median value of owner-occupied homes (ACS 5-year {YEAR}).",
         "unit": "USD",
         "lower_is_better": True,
+        "category": "Housing",
         "vars": ["B25077_001E"],
         "compute": lambda row, idxs: _f(row[idxs["B25077_001E"]]),
     },
@@ -62,6 +64,7 @@ MODULES = [
         "description": f"Median gross monthly rent (ACS 5-year {YEAR}).",
         "unit": "USD/month",
         "lower_is_better": True,
+        "category": "Housing",
         "vars": ["B25064_001E"],
         "compute": lambda row, idxs: _f(row[idxs["B25064_001E"]]),
     },
@@ -71,6 +74,7 @@ MODULES = [
         "description": f"Total population (ACS 5-year {YEAR}).",
         "unit": "people",
         "lower_is_better": False,
+        "category": "Demographics",
         "vars": ["B01003_001E"],
         "compute": lambda row, idxs: _f(row[idxs["B01003_001E"]]),
     },
@@ -80,6 +84,7 @@ MODULES = [
         "description": f"% adults 25+ with bachelor's or higher (ACS 5-year {YEAR}).",
         "unit": "%",
         "lower_is_better": False,
+        "category": "Education",
         "vars": ["B15003_001E", "B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"],
         "compute": lambda row, idxs: _pct(
             sum(_f_safe(row[idxs[v]]) for v in
@@ -192,6 +197,7 @@ def fetch_city_modules() -> list[dict]:
             "description": m["description"],
             "unit": m["unit"],
             "lower_is_better": m["lower_is_better"],
+            "category": m.get("category", "Other"),
             "data": data,
         })
     return modules

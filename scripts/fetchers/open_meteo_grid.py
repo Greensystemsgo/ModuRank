@@ -116,7 +116,7 @@ def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dic
     return [
         {
             "id": mid, "label": label, "description": desc,
-            "unit": unit, "lower_is_better": lib, "data": data,
+            "unit": unit, "lower_is_better": lib, "category": "Climate", "data": data,
         }
         for (mid, label, unit, lib, desc, data) in modules if data
     ]

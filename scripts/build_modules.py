@@ -108,15 +108,50 @@ def sheet_to_dict(ws, state_col: int, value_col: int) -> dict[str, float]:
     return out
 
 
-def normalize(values: dict[str, float], lower_is_better: bool) -> dict[str, float]:
-    """Min-max normalize so higher = better, always in [0, 1]."""
+def _percentile(sorted_vals: list[float], p: float) -> float:
+    n = len(sorted_vals)
+    if n == 1:
+        return sorted_vals[0]
+    pos = p * (n - 1)
+    lo_i = int(pos)
+    hi_i = min(lo_i + 1, n - 1)
+    frac = pos - lo_i
+    return sorted_vals[lo_i] + frac * (sorted_vals[hi_i] - sorted_vals[lo_i])
+
+
+# Winsorization: clip the top/bottom 5% before min-max. Without this a single
+# outlier (e.g. AZ PM2.5 at ~50% worse than runner-up) compresses 49 states
+# into a tiny slice of [0,1]. With N<10 (no module hits this currently) we
+# fall back to raw min/max — too few values to meaningfully clip tails.
+WINSORIZE_LO = 0.05
+WINSORIZE_HI = 0.95
+WINSORIZE_MIN_N = 10
+
+
+def normalize(
+    values: dict[str, float],
+    lower_is_better: bool,
+    winsorize: bool = True,
+) -> dict[str, float]:
+    """Min-max normalize so higher = better, always in [0, 1].
+
+    Winsorized by default: values are clipped to [p5, p95] before scaling.
+    """
     if not values:
         return {}
-    lo, hi = min(values.values()), max(values.values())
+    sorted_vals = sorted(values.values())
+    if winsorize and len(sorted_vals) >= WINSORIZE_MIN_N:
+        lo = _percentile(sorted_vals, WINSORIZE_LO)
+        hi = _percentile(sorted_vals, WINSORIZE_HI)
+    else:
+        lo, hi = sorted_vals[0], sorted_vals[-1]
     spread = hi - lo or 1.0
-    if lower_is_better:
-        return {k: (hi - v) / spread for k, v in values.items()}
-    return {k: (v - lo) / spread for k, v in values.items()}
+
+    def _scale(v: float) -> float:
+        v = max(lo, min(hi, v))
+        return (hi - v) / spread if lower_is_better else (v - lo) / spread
+
+    return {k: _scale(v) for k, v in values.items()}
 
 
 # ---- gun module ---------------------------------------------------------
@@ -469,12 +504,19 @@ def write_sqlite(modules: list[dict]) -> None:
 def _normalize_city(values: dict[tuple[str, str], float], lower_is_better: bool) -> dict[tuple[str, str], float]:
     if not values:
         return {}
-    arr = list(values.values())
-    lo, hi = min(arr), max(arr)
+    sorted_vals = sorted(values.values())
+    if len(sorted_vals) >= WINSORIZE_MIN_N:
+        lo = _percentile(sorted_vals, WINSORIZE_LO)
+        hi = _percentile(sorted_vals, WINSORIZE_HI)
+    else:
+        lo, hi = sorted_vals[0], sorted_vals[-1]
     spread = hi - lo or 1.0
-    if lower_is_better:
-        return {k: (hi - v) / spread for k, v in values.items()}
-    return {k: (v - lo) / spread for k, v in values.items()}
+
+    def _scale(v: float) -> float:
+        v = max(lo, min(hi, v))
+        return (hi - v) / spread if lower_is_better else (v - lo) / spread
+
+    return {k: _scale(v) for k, v in values.items()}
 
 
 def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
@@ -519,6 +561,7 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
             "description": "Above sea level, meters (GeoNames). Higher = mountain town, lower = coastal / valley.",
             "unit": "m",
             "lower_is_better": False,
+            "category": "Climate",
             "data": elev_data,
         })
         print(f"  [GeoNames] elevation ({len(elev_data):,} cities)")
@@ -576,6 +619,7 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
 
             CREATE TABLE module (
                 id              TEXT PRIMARY KEY,
+                category        TEXT NOT NULL DEFAULT 'Other',
                 label           TEXT NOT NULL,
                 description     TEXT,
                 unit            TEXT,
@@ -616,9 +660,10 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
 
         for m in city_modules:
             cur.execute(
-                """INSERT INTO module (id, label, description, unit, lower_is_better)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (m["id"], m["label"], m["description"], m["unit"], 1 if m["lower_is_better"] else 0),
+                """INSERT INTO module (id, category, label, description, unit, lower_is_better)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (m["id"], m.get("category", "Other"), m["label"], m["description"], m["unit"],
+                 1 if m["lower_is_better"] else 0),
             )
             norm = _normalize_city(m["data"], m["lower_is_better"])
             inserted = 0
@@ -653,9 +698,9 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
             # add it now so the frontend can name it in tooltips.
             if m["id"] not in city_module_ids:
                 cur.execute(
-                    """INSERT OR IGNORE INTO module (id, label, description, unit, lower_is_better)
-                       VALUES (?, ?, ?, ?, ?)""",
-                    (m["id"], m["label"], m.get("description"), m.get("unit"),
+                    """INSERT OR IGNORE INTO module (id, category, label, description, unit, lower_is_better)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (m["id"], m.get("category", "Other"), m["label"], m.get("description"), m.get("unit"),
                      1 if m["lower_is_better"] else 0),
                 )
         n_state_ratings = cur.execute("SELECT COUNT(*) FROM state_rating").fetchone()[0]
@@ -724,7 +769,9 @@ def _split_cities_db() -> None:
             CREATE INDEX city_by_name  ON city(name);
 
             CREATE TABLE module (
-                id TEXT PRIMARY KEY, label TEXT NOT NULL,
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL DEFAULT 'Other',
+                label TEXT NOT NULL,
                 description TEXT, unit TEXT, lower_is_better INTEGER NOT NULL
             );
 
@@ -781,7 +828,9 @@ def _split_cities_db() -> None:
                 );
 
                 CREATE TABLE module (
-                    id TEXT PRIMARY KEY, label TEXT NOT NULL,
+                    id TEXT PRIMARY KEY,
+                    category TEXT NOT NULL DEFAULT 'Other',
+                    label TEXT NOT NULL,
                     description TEXT, unit TEXT, lower_is_better INTEGER NOT NULL
                 );
             """)

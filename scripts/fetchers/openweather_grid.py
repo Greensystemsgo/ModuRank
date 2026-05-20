@@ -79,5 +79,6 @@ def fetch_city_air(cities: list[dict], cache_only: bool = False) -> list[dict]:
         "description": "30-day mean PM2.5 concentration. Lower = cleaner. WHO ≤5, EPA ≤9.",
         "unit": "µg/m³",
         "lower_is_better": True,
+        "category": "Safety & Risk",
         "data": pm25,
     }]
