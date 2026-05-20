@@ -483,9 +483,12 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
 
     # Pull per-city air quality (grid-cached OpenWeather).
     if os.environ.get("MODURANK_LOAD_CITY_AIR") == "1":
-        print("\nFetching per-city air quality (OpenWeather grid)...")
+        # cache_only=true: only use cells already on disk. Skips the slow
+        # retry of cells that previously returned errors / 401s.
+        cache_only = os.environ.get("MODURANK_LOAD_CITY_AIR_CACHE_ONLY") == "1"
+        print(f"\nFetching per-city air quality (OpenWeather grid, cache_only={cache_only})...")
         try:
-            air_modules = openweather_grid.fetch_city_air(cities)
+            air_modules = openweather_grid.fetch_city_air(cities, cache_only=cache_only)
             for m in air_modules:
                 print(f"  [OpenWeather grid] {m['id']} ({len(m['data']):,} cities)")
             city_modules.extend(air_modules)

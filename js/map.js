@@ -178,7 +178,10 @@ function _styleState(feature) {
 
   let fill = "#dddddd";
   if (r && r.factors > 0) {
-    fill = scale(r.score) || fill;
+    // Use rank-based percentile so colors span the full red→green range,
+    // not just the mid-tones where most weighted averages cluster.
+    const pct = _rankToPct ? _rankToPct.get(r.fips) ?? r.score : r.score;
+    fill = scale(pct) || fill;
   } else {
     fill = tile ? "rgba(150,150,150,0.15)" : "#e7e7ec";
   }
@@ -274,15 +277,20 @@ function _hideTip() {
 }
 
 // Set new scores for the choropleth.
+let _rankToPct = null;  // map fips → percentile 0..1
 export function updateMap(ranking) {
   _scoresByName = new Map();
   _ranksByName = new Map();
+  _rankToPct = new Map();
+  const n = ranking.length;
   ranking.forEach((r, idx) => {
     _scoresByName.set(r.state, r);
     _ranksByName.set(r.state, idx + 1);
+    // Rank-based percentile: best = 1, worst = 0. Spreads colors to full
+    // gradient instead of compressed mid-tones.
+    _rankToPct.set(r.fips || r.state, n > 1 ? (n - 1 - idx) / (n - 1) : 1);
   });
   if (_stateLayer) _stateLayer.setStyle(_styleState);
-  // Refresh chip with new score when weights change.
   _updateFocusChip();
 }
 
@@ -392,21 +400,27 @@ async function _renderCitiesForFocus(stateName) {
   const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#2f6df6").trim();
   const topGold = (getComputedStyle(document.documentElement).getPropertyValue("--scale-top") || "#5fbf5a").trim();
 
-  // Identify the top 3 cities by score for visual highlighting.
-  const top3 = new Set(
-    [...cities]
-      .filter((c) => c.score != null)
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 3)
-      .map((c) => `${c.state}|${c.name}`)
-  );
+  // Rank cities (for rank-based percentile coloring + top-3 highlight).
+  const scored = [...cities].filter((c) => c.score != null);
+  scored.sort((a, b) => (b.score || 0) - (a.score || 0));
+  const cityRank = new Map();
+  scored.forEach((c, i) => cityRank.set(`${c.state}|${c.name}`, i));
+  const cityCount = scored.length;
+  const top3 = new Set(scored.slice(0, 3).map((c) => `${c.state}|${c.name}`));
 
   const markers = sorted.map((c) => {
     const t = c.population > 0 ? Math.sqrt(c.population / maxPop) : 0;
     let radius = minR + (maxR - minR) * t;
     const isTop = top3.has(`${c.state}|${c.name}`);
     if (isTop) radius = Math.max(radius * 1.6, 11);
-    const fill = c.score != null ? scale(c.score) : defaultFill;
+    let fill = defaultFill;
+    if (c.score != null && cityCount > 1) {
+      const rank = cityRank.get(`${c.state}|${c.name}`);
+      const pct = (cityCount - 1 - rank) / (cityCount - 1);
+      fill = scale(pct);
+    } else if (c.score != null) {
+      fill = scale(c.score);
+    }
     const isPin = isPinned(c.name, stateName, "city");
     const marker = L.circleMarker([c.latitude, c.longitude], {
       radius,

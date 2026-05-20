@@ -21,7 +21,7 @@ def _round_to_grid(lat: float, lon: float) -> tuple[float, float]:
             round(lon / GRID_SIZE) * GRID_SIZE)
 
 
-def _fetch_cell_pm25(lat: float, lon: float, api_key: str) -> float | None:
+def _fetch_cell_pm25(lat: float, lon: float, api_key: str, cache_only: bool = False) -> float | None:
     end = int(time.time())
     start = end - 30 * 24 * 3600
     url = (
@@ -30,7 +30,7 @@ def _fetch_cell_pm25(lat: float, lon: float, api_key: str) -> float | None:
     )
     key = f"openweather_grid_{lat}_{lon}.json"
     try:
-        body = cached_get(url, key)
+        body = cached_get(url, key, cache_only=cache_only)
     except Exception:
         return None
     try:
@@ -47,7 +47,7 @@ def _fetch_cell_pm25(lat: float, lon: float, api_key: str) -> float | None:
     return round(sum(samples) / len(samples), 2)
 
 
-def fetch_city_air(cities: list[dict]) -> list[dict]:
+def fetch_city_air(cities: list[dict], cache_only: bool = False) -> list[dict]:
     api_key = os.environ.get("OPENWEATHER_API_KEY")
     if not api_key:
         print("  [OpenWeather grid] OPENWEATHER_API_KEY not set — skipping")
@@ -63,9 +63,9 @@ def fetch_city_air(cities: list[dict]) -> list[dict]:
 
     pm25: dict[tuple[str, str], float] = {}
     for i, ((lat, lon), city_list) in enumerate(cells.items()):
-        if i % 50 == 0:
+        if i % 200 == 0:
             print(f"    cell {i}/{len(cells)}  ({lat:+.1f}, {lon:+.1f})  -> {len(city_list)} cities")
-        v = _fetch_cell_pm25(lat, lon, api_key)
+        v = _fetch_cell_pm25(lat, lon, api_key, cache_only=cache_only)
         if v is None:
             continue
         for c in city_list:

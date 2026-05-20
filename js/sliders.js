@@ -143,6 +143,20 @@ function _renderRow(m) {
     label.textContent = m.label;
     if (m.description) label.title = m.description;
 
+    // Info icon — tap to show description (mobile-friendly).
+    const info = document.createElement("button");
+    info.type = "button";
+    info.className = "info-btn";
+    info.textContent = "i";
+    info.title = m.description || "";
+    info.setAttribute("aria-label", `About ${m.label}`);
+    info.addEventListener("click", (e) => {
+      e.stopPropagation();
+      _showInfoPopover(info, m);
+    });
+    label.append(" ");
+    label.append(info);
+
     const slider = document.createElement("input");
     slider.type = "range";
     slider.min = "0";
@@ -219,6 +233,44 @@ function _setDirVisual(btn, lowerIsBetter) {
   btn.title = lowerIsBetter
     ? "Lower is better — click to flip (more = better)"
     : "Higher is better — click to flip (less = better)";
+}
+
+let _activeInfoPopover = null;
+function _showInfoPopover(anchor, m) {
+  if (_activeInfoPopover) {
+    _activeInfoPopover.remove();
+    _activeInfoPopover = null;
+  }
+  const pop = document.createElement("div");
+  pop.className = "info-popover";
+  pop.innerHTML = `
+    <div class="info-popover-title">${_esc(m.label)}</div>
+    <div class="info-popover-body">${_esc(m.description || "")}</div>
+    <div class="info-popover-meta">
+      ${m.unit ? `<span><b>Unit:</b> ${_esc(m.unit)}</span>` : ""}
+      <span><b>Direction:</b> ${m.lower_is_better ? "Lower is better" : "Higher is better"}</span>
+      ${m.source ? `<span><b>Source:</b> ${_esc(m.source)}</span>` : ""}
+    </div>
+  `;
+  document.body.appendChild(pop);
+
+  const rect = anchor.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.min(window.innerWidth - 320, rect.left)}px`;
+  pop.style.top = `${rect.bottom + 4}px`;
+
+  const dismiss = (e) => {
+    if (e && (pop.contains(e.target) || anchor.contains(e.target))) return;
+    pop.remove();
+    _activeInfoPopover = null;
+    document.removeEventListener("click", dismiss);
+  };
+  setTimeout(() => document.addEventListener("click", dismiss), 0);
+  _activeInfoPopover = pop;
+}
+
+function _esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 }
 
 function _setEnabled(row, enabled) {

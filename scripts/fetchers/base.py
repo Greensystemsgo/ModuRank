@@ -18,10 +18,12 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 USER_AGENT = "ModuRank/0.1 (+https://github.com/Greensystemsgo/ModuRank)"
 
 
-def cached_get(url: str, cache_name: str, *, refresh: bool = False) -> str:
+def cached_get(url: str, cache_name: str, *, refresh: bool = False, cache_only: bool = False) -> str:
     cache_path = RAW_DIR / cache_name
     if cache_path.exists() and not refresh:
         return cache_path.read_text(encoding="utf-8")
+    if cache_only:
+        raise FileNotFoundError(f"cache miss for {cache_name}")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
         body = resp.read().decode("utf-8")
