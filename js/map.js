@@ -395,7 +395,9 @@ async function _renderCitiesForFocus(stateName) {
   let cities = computeCityRanking(_citiesDb, _activeWeights, stateName);
   if (!cities.length) return;
   if (_citiesFilter === "data") {
-    cities = cities.filter((c) => c.factors > 0 || (c.population && c.population > 0));
+    // Require at least one city-level factor to qualify — otherwise the
+    // city is a pure state-inheritance ghost and would all-tie.
+    cities = cities.filter((c) => (c.city_factors > 0) || (c.population && c.population > 0));
   }
   _renderCitiesFilterControl(stateName);
 

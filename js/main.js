@@ -84,8 +84,8 @@ const errBox = (msg) => {
         }
         if (_citiesDb) {
           const cityRanking = computeCityRanking(_citiesDb, weights, focused)
-            .filter((c) => c.score != null)
-            .map((c) => ({ state: c.name, score: c.score, factors: c.factors }));
+            .filter((c) => c.score != null && c.city_factors > 0)
+            .map((c) => ({ state: c.name, score: c.score, factors: c.factors, city_factors: c.city_factors }));
           if (cityRanking.length) {
             displayRanking = cityRanking;
             displayMode = "cities";

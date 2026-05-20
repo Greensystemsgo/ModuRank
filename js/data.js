@@ -79,13 +79,20 @@ export function computeCityRanking(citiesDb, weights, stateName) {
                       THEN (CASE WHEN flipped = 1 THEN 1.0 - normalized ELSE normalized END) * weight
                       ELSE 0 END) AS num,
              SUM(CASE WHEN normalized IS NOT NULL THEN weight ELSE 0 END) AS den,
-             SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors
+             SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors,
+             /* How many *city-level* modules actually contributed —
+                excluding state-inherited values. Honest precision. */
+             SUM(CASE
+                   WHEN normalized IS NOT NULL
+                    AND city_id IN (SELECT city_id FROM city_rating WHERE module_id = city_x_w.module_id)
+                   THEN 1 ELSE 0 END) AS city_factors
       FROM city_x_w
       GROUP BY city_id
     )
     SELECT c.id, c.name, c.latitude, c.longitude, c.population,
            CASE WHEN co.den > 0 THEN co.num / co.den ELSE NULL END AS score,
-           COALESCE(co.factors, 0) AS factors
+           COALESCE(co.factors, 0) AS factors,
+           COALESCE(co.city_factors, 0) AS city_factors
     FROM city c
     LEFT JOIN contrib co ON co.city_id = c.id
     WHERE c.state = :state
