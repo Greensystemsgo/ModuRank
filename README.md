@@ -14,17 +14,15 @@ A local web server is required (the browser can't `fetch()` the .sqlite or
 the JSON over `file://`).
 
 ```powershell
-# one-time: build the venv and install Python deps
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r scripts\requirements.txt
-
-# rebuild the data file (re-run anytime source data changes)
-.venv\Scripts\python.exe scripts\build_modules.py
-
-# serve the site
-python -m http.server 8000
-# open http://localhost:8000
+make setup     # one-time: venv + pip install
+make build     # generate data/moduRank.sqlite + cities shards
+make up        # serve http://localhost:8000
 ```
+
+`make help` lists every target. The diagnostic targets (`make smoke`,
+`make profile STATE=Arizona`, `make correlation`) exercise the same SQL the
+JS frontend runs, so a green `make smoke` is a strong signal the live site
+will load cleanly.
 
 ## Deploying
 
