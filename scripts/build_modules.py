@@ -288,6 +288,44 @@ def build_modules() -> list[dict]:
     ]
 
 
+def _build_elevation_state_module() -> dict | None:
+    """State-level mean elevation, derived from per-place elevations in
+    GeoNames. Gives the user an Elevation slider by default; per-city
+    elevations from the cities DB override via city_rating."""
+    try:
+        cities = geonames_cities.fetch_cities()
+    except Exception:
+        return None
+    by_state: dict[str, list[int]] = {}
+    for c in cities:
+        elev = c.get("elevation_m")
+        if elev is None:
+            continue
+        # Weight by population so the dominant centers of the state count
+        # more than tiny mountain villages.
+        pop = c.get("population") or 0
+        if pop <= 0:
+            continue
+        by_state.setdefault(c["state"], []).extend([elev] * max(1, pop // 1000))
+    data = {}
+    for state, vals in by_state.items():
+        if vals:
+            data[state] = round(sum(vals) / len(vals), 1)
+    if not data:
+        return None
+    return {
+        "id": "elevation",
+        "category": "Climate",
+        "label": "Elevation",
+        "description": "Population-weighted mean elevation of incorporated places (meters above sea level). Higher = mountain state.",
+        "unit": "m",
+        "source": "GeoNames US places (population-weighted)",
+        "lower_is_better": False,
+        "methodology": None,
+        "data": data,
+    }
+
+
 def build_api_modules() -> list[dict]:
     """Pull modules from live APIs (cached after first run)."""
     fips_to_name = {fips: name for name, fips in STATE_FIPS.items()}
@@ -654,6 +692,11 @@ def main() -> None:
         print(f"  [static]   {m['id']} ({len(m['data'])} states)")
     print("\nAPI-sourced modules:")
     modules.extend(build_api_modules())
+
+    elev_mod = _build_elevation_state_module()
+    if elev_mod:
+        modules.append(elev_mod)
+        print(f"  [GeoNames] {elev_mod['id']} ({len(elev_mod['data'])} states)")
     # De-dup by id, last-write-wins.
     by_id: dict[str, dict] = {}
     for m in modules:
