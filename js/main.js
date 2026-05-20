@@ -2,7 +2,7 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, loadCitiesIndex, listModules, computeRanking, computeSingleFactor, getStateBreakdown, computeCityRanking } from "./data.js";
+import { loadDatabase, loadCitiesIndex, listModules, computeRanking, computeSingleFactor, getStateBreakdown, getStateProfile, computeCityRanking } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
   resetWeights, randomizeWeights, applyWeights,
@@ -12,7 +12,7 @@ import { PRESETS } from "./presets.js";
 import { renderCompare, onChange as onPinChange, getPinned, setPins } from "./compare.js";
 import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl, focusStateByName, flyToCity, getStateCitiesDb } from "./map.js";
 import { initSearch, setSearchCitiesDb } from "./search.js";
-import { renderRanking } from "./ranking.js";
+import { renderRanking, renderStateProfile } from "./ranking.js";
 
 initTheme();
 
@@ -59,6 +59,11 @@ const errBox = (msg) => {
       onSelectCity: (city) => flyToCity(city),
     });
 
+    // Ranking-card view state: when a state is focused, the card gets two
+    // tabs — "Cities in X" (live-scored cities) and "X profile" (every module
+    // rank/percentile for the state). `_activeTab` is the user's selection.
+    let _activeTab = "cities";
+
     const refresh = async () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
@@ -102,6 +107,9 @@ const errBox = (msg) => {
         renderRanking(displayRanking, enabled.length);
       }
 
+      // State Profile panel + tabs: visible only when a state is focused.
+      _updateProfileTabs(db, focused);
+
       writeHash(weights, getPinned());
       setBreakdownContext(db, weights);
       _updateWinnerChip(displayRanking, enabled.length, sortBy);
@@ -113,6 +121,47 @@ const errBox = (msg) => {
       );
     };
 
+    function _updateProfileTabs(db, focused) {
+      const tabs = document.getElementById("ranking-tabs");
+      const rankingOl = document.getElementById("ranking");
+      const profileWrap = document.getElementById("state-profile");
+      const heading = document.getElementById("ranking-heading");
+      if (!focused) {
+        tabs.classList.add("hidden");
+        rankingOl.classList.remove("hidden");
+        profileWrap.classList.add("hidden");
+        if (heading) heading.textContent = "Ranking";
+        return;
+      }
+      tabs.classList.remove("hidden");
+      // Update tab labels with the focused state name.
+      const cityTab = tabs.querySelector('[data-tab="cities"]');
+      const profileTab = tabs.querySelector('[data-tab="profile"]');
+      cityTab.textContent = "Cities";
+      profileTab.textContent = `${focused} profile`;
+      cityTab.classList.toggle("active", _activeTab === "cities");
+      profileTab.classList.toggle("active", _activeTab === "profile");
+
+      if (_activeTab === "profile") {
+        rankingOl.classList.add("hidden");
+        profileWrap.classList.remove("hidden");
+        if (heading) heading.textContent = `${focused} profile`;
+        renderStateProfile(getStateProfile(db, focused), focused);
+      } else {
+        rankingOl.classList.remove("hidden");
+        profileWrap.classList.add("hidden");
+        // The cities-list renderRanking call above already set the heading.
+      }
+    }
+
+    // Tab click handler — refresh re-evaluates which panel to show.
+    document.getElementById("ranking-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest(".ranking-tab");
+      if (!btn) return;
+      _activeTab = btn.dataset.tab;
+      refresh();
+    });
+
     onPinChange(() => refresh());
 
     _initOnboarding();
@@ -120,8 +169,10 @@ const errBox = (msg) => {
 
     onWeightsChange(refresh);
     onFocusChange((stateName) => {
-      // Future: when stateName !== null, swap ranking to cities-in-state.
-      // For now, refresh just re-renders state ranking with focus chip on.
+      // Reset tab to "cities" each time a new state is focused (or the focus
+      // clears), so the user never lands on a stale Profile of a state they
+      // already left.
+      if (!stateName) _activeTab = "cities";
       refresh();
     });
     document.getElementById("reset-weights").addEventListener("click", () => {

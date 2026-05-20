@@ -84,7 +84,11 @@
 
     <section class="card ranking-card">
       <div class="card-header">
-        <h2>Ranking</h2>
+        <h2 id="ranking-heading">Ranking</h2>
+        <div class="ranking-tabs hidden" id="ranking-tabs" role="tablist">
+          <button class="ranking-tab active" data-tab="cities" role="tab">Cities</button>
+          <button class="ranking-tab" data-tab="profile" role="tab">Profile</button>
+        </div>
         <div class="header-actions">
           <span id="ranking-summary" class="muted"></span>
           <select id="sort-by-select" class="preset-select" title="Sort the ranking by a single factor">
@@ -93,6 +97,7 @@
         </div>
       </div>
       <ol id="ranking" class="ranking"></ol>
+      <div id="state-profile" class="state-profile hidden"></div>
     </section>
 
     <section id="compare-card" class="card compare-card hidden">

@@ -2,6 +2,9 @@
 //   weighted  — show 0-100 weighted-score percentile
 //   single    — show that module's raw value with its unit
 //   cities    — same as weighted but for cities in a focused state
+//
+// State Profile view (renderStateProfile) lives in this file too — same card,
+// different panel, swapped by the tabs in the card header.
 
 import { isPinned, togglePin } from "./compare.js";
 
@@ -104,4 +107,75 @@ function _fmt(v) {
   if (Math.abs(v) >= 100)   return v.toLocaleString(undefined, { maximumFractionDigits: 1 });
   if (Math.abs(v) >= 1)     return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+// "Work backwards" view — pick a state, see how it ranks across every module
+// bucketed by category. Rows are passed in pre-ranked (see getStateProfile in
+// data.js); we just lay them out and color the percentile bar.
+export function renderStateProfile(rows, stateName) {
+  const wrap = document.getElementById("state-profile");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!rows || !rows.length) {
+    wrap.innerHTML = `<div class="profile-summary">No data for ${stateName}.</div>`;
+    return;
+  }
+
+  const top5 = rows.filter((r) => r.rnk <= 5).length;
+  const bottom5 = rows.filter((r) => r.total - r.rnk + 1 <= 5).length;
+  const summary = document.createElement("div");
+  summary.className = "profile-summary";
+  summary.innerHTML =
+    `<b>${stateName}</b> &middot; ${rows.length} modules &middot; ` +
+    `top-5 in <b>${top5}</b> &middot; bottom-5 in <b>${bottom5}</b>`;
+  wrap.append(summary);
+
+  // Group by category, preserve a stable order based on best-rank-in-category
+  // so the state's strongest categories surface first.
+  const byCat = new Map();
+  for (const r of rows) {
+    if (!byCat.has(r.category)) byCat.set(r.category, []);
+    byCat.get(r.category).push(r);
+  }
+  const catOrder = [...byCat.entries()]
+    .map(([cat, list]) => [cat, Math.min(...list.map((r) => r.rnk))])
+    .sort((a, b) => a[1] - b[1])
+    .map(([cat]) => cat);
+
+  for (const cat of catOrder) {
+    const list = byCat.get(cat);
+    const section = document.createElement("div");
+    section.className = "profile-cat";
+
+    const title = document.createElement("div");
+    title.className = "profile-cat-title";
+    title.textContent = cat;
+    section.append(title);
+
+    list.sort((a, b) => a.rnk - b.rnk);
+    for (const row of list) {
+      const pct = row.total > 1 ? (row.total - row.rnk) / (row.total - 1) : 1;
+      const isTop = row.rnk <= 5;
+      const isBottom = row.total - row.rnk + 1 <= 5;
+      const rankClass = isTop ? "p-rank-good" : isBottom ? "p-rank-bad" : "";
+
+      const r = document.createElement("div");
+      r.className = "profile-row";
+      r.innerHTML =
+        `<span class="p-label">${row.label}</span>` +
+        `<span class="p-value">${_fmtProfileValue(row)}</span>` +
+        `<span class="p-rank ${rankClass}">#${row.rnk}/${row.total}</span>` +
+        `<div class="profile-bar"><div class="profile-bar-fill"` +
+        ` style="width:${(pct * 100).toFixed(1)}%;background:hsl(${(pct * 120).toFixed(0)}, 60%, 50%)"></div></div>`;
+      section.append(r);
+    }
+    wrap.append(section);
+  }
+}
+
+function _fmtProfileValue(row) {
+  const v = row.value;
+  const u = row.unit || "";
+  const s = _fmt(v);
+  return u ? `${s} ${u}` : s;
 }

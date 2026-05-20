@@ -50,11 +50,15 @@ const TILE_PROVIDERS = {
 
 const scale = (t) => {
   if (t == null || isNaN(t)) return null;  // null = use default fill
+  // Punchier red→orange→yellow→green ramp. Previous pastels made mid-range
+  // cities visually indistinguishable from the top tier; user complaint:
+  // "every city is medium green, yellow should be more obvious."
   const stops = [
-    [0.0, [247, 218, 218]],
-    [0.4, [255, 241, 196]],
-    [0.7, [200, 236, 196]],
-    [1.0, [95, 191, 90]],
+    [0.00, [212, 102, 102]],
+    [0.25, [232, 158,  92]],
+    [0.50, [240, 205,  92]],
+    [0.75, [175, 210, 108]],
+    [1.00, [ 78, 178,  82]],
   ];
   for (let i = 1; i < stops.length; i++) {
     const [t1, c1] = stops[i];
@@ -329,6 +333,11 @@ async function _focusState(feature, layer) {
   _updateFocusChip();
   if (_onFocus) _onFocus(name);
   await _renderCitiesForFocus(name);
+  // After the per-state DB finishes loading the ranking-panel refresh in
+  // main.js needs to re-run so it can switch from "states list" to
+  // "cities in <state>". First _onFocus() ran before getStateCitiesDb was
+  // populated; this second call sees the loaded DB.
+  if (_focusedState === name && _onFocus) _onFocus(name);
 }
 
 function _clearFocus() {

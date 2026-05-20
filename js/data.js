@@ -79,6 +79,8 @@ export function computeCityRanking(citiesDb, weights, stateName) {
     Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
+  // Two-level aggregation matching state ranking: weighted average inside
+  // each category, then plain average across active categories.
   const stmt = citiesDb.prepare(`
     WITH w AS (
       SELECT key AS module_id,
@@ -86,38 +88,41 @@ export function computeCityRanking(citiesDb, weights, stateName) {
              CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
       FROM json_each(:weights)
     ),
-    /* per-city per-module COALESCEd normalized value: city-level wins, else state-level */
     city_x_w AS (
-      SELECT c.id AS city_id, w.module_id, w.weight, w.flipped,
-             COALESCE(cr.normalized, sr.normalized) AS normalized
+      SELECT c.id AS city_id, w.module_id, w.weight, w.flipped, m.category,
+             COALESCE(cr.normalized, sr.normalized) AS normalized,
+             CASE WHEN cr.normalized IS NOT NULL THEN 1 ELSE 0 END AS is_city_level
       FROM city c
       CROSS JOIN w
+      JOIN module m ON m.id = w.module_id
       LEFT JOIN city_rating cr ON cr.city_id = c.id AND cr.module_id = w.module_id
       LEFT JOIN state_rating sr ON sr.state = c.state AND sr.module_id = w.module_id
       WHERE c.state = :state
     ),
-    contrib AS (
-      SELECT city_id,
-             SUM(CASE WHEN normalized IS NOT NULL
-                      THEN (CASE WHEN flipped = 1 THEN 1.0 - normalized ELSE normalized END) * weight
-                      ELSE 0 END) AS num,
-             SUM(CASE WHEN normalized IS NOT NULL THEN weight ELSE 0 END) AS den,
-             SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors,
-             /* How many *city-level* modules actually contributed —
-                excluding state-inherited values. Honest precision. */
-             SUM(CASE
-                   WHEN normalized IS NOT NULL
-                    AND city_id IN (SELECT city_id FROM city_rating WHERE module_id = city_x_w.module_id)
-                   THEN 1 ELSE 0 END) AS city_factors
+    per_cat AS (
+      SELECT city_id, category,
+             SUM((CASE WHEN flipped = 1 THEN 1.0 - normalized ELSE normalized END) * weight) /
+               SUM(weight) AS cat_score,
+             COUNT(*)                AS n_in_cat,
+             SUM(is_city_level)      AS city_in_cat
       FROM city_x_w
+      WHERE normalized IS NOT NULL
+      GROUP BY city_id, category
+    ),
+    agg AS (
+      SELECT city_id,
+             AVG(cat_score)       AS score,
+             SUM(n_in_cat)        AS factors,
+             SUM(city_in_cat)     AS city_factors
+      FROM per_cat
       GROUP BY city_id
     )
     SELECT c.id, c.name, c.latitude, c.longitude, c.population,
-           CASE WHEN co.den > 0 THEN co.num / co.den ELSE NULL END AS score,
-           COALESCE(co.factors, 0) AS factors,
-           COALESCE(co.city_factors, 0) AS city_factors
+           a.score,
+           COALESCE(a.factors, 0)       AS factors,
+           COALESCE(a.city_factors, 0)  AS city_factors
     FROM city c
-    LEFT JOIN contrib co ON co.city_id = c.id
+    LEFT JOIN agg a ON a.city_id = c.id
     WHERE c.state = :state
     ORDER BY c.population DESC
   `);
@@ -197,6 +202,10 @@ export function computeRanking(db, weights) {
     Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
+  // Two-level aggregation (category-weight capping): weighted average inside
+  // each category, then plain average across active categories. Prevents the
+  // climate cluster (9 correlated modules) from dominating against single-
+  // module categories like Education.
   const sql = `
     WITH w AS (
       SELECT key AS module_id,
@@ -204,23 +213,35 @@ export function computeRanking(db, weights) {
              CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
       FROM json_each(:weights)
     ),
-    contrib AS (
-      SELECT
-        r.place_id,
-        SUM((CASE WHEN w.flipped = 1 THEN 1.0 - r.normalized ELSE r.normalized END) * w.weight) AS num,
-        SUM(w.weight)                AS den,
-        COUNT(*)                     AS factors
+    mw AS (
+      SELECT r.place_id, m.category, w.weight,
+             CASE WHEN w.flipped = 1 THEN 1.0 - r.normalized ELSE r.normalized END AS norm
       FROM rating r
       JOIN w ON w.module_id = r.module_id
-      GROUP BY r.place_id
+      JOIN module m ON m.id = r.module_id
+      WHERE r.normalized IS NOT NULL
+    ),
+    per_cat AS (
+      SELECT place_id, category,
+             SUM(norm * weight) / SUM(weight) AS cat_score,
+             COUNT(*) AS n_in_cat
+      FROM mw
+      GROUP BY place_id, category
+    ),
+    agg AS (
+      SELECT place_id,
+             AVG(cat_score)  AS score,
+             SUM(n_in_cat)   AS factors
+      FROM per_cat
+      GROUP BY place_id
     )
     SELECT
       p.name  AS state,
       p.fips  AS fips,
-      CASE WHEN c.den > 0 THEN c.num / c.den ELSE 0 END AS score,
-      COALESCE(c.factors, 0) AS factors
+      COALESCE(a.score, 0)   AS score,
+      COALESCE(a.factors, 0) AS factors
     FROM place p
-    LEFT JOIN contrib c ON c.place_id = p.id
+    LEFT JOIN agg a ON a.place_id = p.id
     WHERE p.kind = 'state'
     ORDER BY score DESC, p.name ASC
   `;
@@ -267,6 +288,37 @@ export function computeSingleFactor(db, moduleId) {
       lowerIsBetter: !!row.lower_is_better,
     });
   }
+  stmt.free();
+  return out;
+}
+
+// Per-module rank and value for ONE state, across every module.
+// Used by the State Profile panel: "you are #34 of 51 for Cost of Living."
+// Categories are pulled from the module table so the panel can bucket rows.
+export function getStateProfile(db, stateName) {
+  const stmt = db.prepare(`
+    WITH ranked AS (
+      SELECT r.module_id,
+             p.id AS place_id,
+             p.name AS state,
+             r.value,
+             r.normalized,
+             DENSE_RANK() OVER (PARTITION BY r.module_id ORDER BY r.normalized DESC) AS rnk,
+             COUNT(*) OVER (PARTITION BY r.module_id) AS total
+      FROM rating r
+      JOIN place p ON p.id = r.place_id
+      WHERE p.kind = 'state' AND r.normalized IS NOT NULL
+    )
+    SELECT m.id AS module_id, m.category, m.label, m.unit, m.lower_is_better,
+           r.value, r.normalized, r.rnk, r.total
+    FROM module m
+    JOIN ranked r ON r.module_id = m.id
+    WHERE r.state = :name
+    ORDER BY m.category, m.label
+  `);
+  stmt.bind({ ":name": stateName });
+  const out = [];
+  while (stmt.step()) out.push(stmt.getAsObject());
   stmt.free();
   return out;
 }
