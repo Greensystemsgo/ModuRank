@@ -79,6 +79,13 @@ export function clearPins() {
   if (_onChange) _onChange();
 }
 
+// Replace the entire pin list (used by URL-hash hydration).
+export function setPins(pins) {
+  _pinned = (pins || []).slice(0, MAX_PINS);
+  _savePinned();
+  if (_onChange) _onChange();
+}
+
 export function onChange(fn) { _onChange = fn; }
 
 // Build the comparison table given the current pins.

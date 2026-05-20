@@ -276,6 +276,23 @@ function _hideTip() {
   document.getElementById("map-tooltip").classList.remove("visible");
 }
 
+const POSTAL = {
+  Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR",
+  California: "CA", Colorado: "CO", Connecticut: "CT", Delaware: "DE",
+  "District of Columbia": "DC", Florida: "FL", Georgia: "GA", Hawaii: "HI",
+  Idaho: "ID", Illinois: "IL", Indiana: "IN", Iowa: "IA", Kansas: "KS",
+  Kentucky: "KY", Louisiana: "LA", Maine: "ME", Maryland: "MD",
+  Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS",
+  Missouri: "MO", Montana: "MT", Nebraska: "NE", Nevada: "NV",
+  "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+  "North Carolina": "NC", "North Dakota": "ND", Ohio: "OH", Oklahoma: "OK",
+  Oregon: "OR", Pennsylvania: "PA", "Rhode Island": "RI",
+  "South Carolina": "SC", "South Dakota": "SD", Tennessee: "TN", Texas: "TX",
+  Utah: "UT", Vermont: "VT", Virginia: "VA", Washington: "WA",
+  "West Virginia": "WV", Wisconsin: "WI", Wyoming: "WY",
+};
+function _postal(state) { return POSTAL[state] || state; }
+
 // Set new scores for the choropleth.
 let _rankToPct = null;  // map fips → percentile 0..1
 export function updateMap(ranking) {
@@ -470,18 +487,25 @@ function _showCityTip(event, city, stateName) {
     const rows = getCityBreakdown(_citiesDb, city.id);
     const enabled = rows.filter((r) => (_weightsByModule.get(r.module_id) ?? 50) > 0);
     if (enabled.length) {
+      const cityLocal = enabled.filter((r) => !r.inherited).length;
+      const stateInh = enabled.length - cityLocal;
+      // Honest-precision indicator — addresses the "state-inherited
+      // modules dominate the score" feedback.
+      html += `<div class="tip-row" style="font-size:10px;color:var(--text-muted)">` +
+              `<span><b>${cityLocal}</b> city · <b>${stateInh}</b> state-inherited</span></div>`;
+
       const sorted = [...enabled].sort((a, b) => b.normalized - a.normalized);
       const strengths = sorted.slice(0, 3);
       const weaknesses = sorted.slice(-3).reverse();
       html += `<div class="tip-section">Strengths</div>`;
       for (const row of strengths) {
-        const mark = row.inherited ? ' <span style="opacity:0.5;font-size:9px">(state)</span>' : "";
+        const mark = row.inherited ? ' <span style="opacity:0.55;font-size:9px;color:var(--text-muted)">[' + (stateName ? _postal(stateName) : "state") + ']</span>' : "";
         html += `<div class="tip-row"><span class="k">${row.label}${mark}</span><span class="v">${_fmtValue(row)}</span></div>`;
       }
       if (enabled.length > 3) {
         html += `<div class="tip-section">Weaknesses</div>`;
         for (const row of weaknesses) {
-          const mark = row.inherited ? ' <span style="opacity:0.5;font-size:9px">(state)</span>' : "";
+          const mark = row.inherited ? ' <span style="opacity:0.55;font-size:9px;color:var(--text-muted)">[' + (stateName ? _postal(stateName) : "state") + ']</span>' : "";
           html += `<div class="tip-row"><span class="k">${row.label}${mark}</span><span class="v">${_fmtValue(row)}</span></div>`;
         }
       }

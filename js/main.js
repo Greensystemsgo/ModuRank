@@ -9,7 +9,7 @@ import {
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
-import { renderCompare, onChange as onPinChange } from "./compare.js";
+import { renderCompare, onChange as onPinChange, getPinned, setPins } from "./compare.js";
 import { renderMap, updateMap, setBreakdownContext, onFocusChange, getFocusedState, setCitiesDbUrl, focusStateByName, flyToCity } from "./map.js";
 import { initSearch, setSearchCitiesDb } from "./search.js";
 import { renderRanking } from "./ranking.js";
@@ -44,9 +44,12 @@ const errBox = (msg) => {
     _populatePresets();
     _populateSortBy(modules);
 
-    // Apply weights from URL hash if present.
+    // Apply weights + pins from URL hash if present.
     const initial = readHash();
-    if (initial) applyWeights(initial);
+    if (initial) {
+      if (initial.weights) applyWeights(initial.weights);
+      if (initial.pins) setPins(initial.pins);
+    }
 
     let _citiesDb = null;
 
@@ -104,7 +107,7 @@ const errBox = (msg) => {
         renderRanking(displayRanking, enabled.length);
       }
 
-      writeHash(weights);
+      writeHash(weights, getPinned());
       setBreakdownContext(db, weights);
       _updateWinnerChip(displayRanking, enabled.length, sortBy);
 
@@ -179,7 +182,8 @@ const errBox = (msg) => {
     window.addEventListener("hashchange", () => {
       const next = readHash();
       if (next) {
-        applyWeights(next);
+        if (next.weights) applyWeights(next.weights);
+        if (next.pins) setPins(next.pins);
         refresh();
       }
     });
