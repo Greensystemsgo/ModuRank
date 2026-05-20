@@ -1,8 +1,10 @@
 // Encode active slider weights into the URL hash so the page is shareable.
 //
-// Format: #cost_of_living=100,gun_friendliness=80,...
-// Omitted modules default to enabled at DEFAULT_WEIGHT; weight=0 means
-// disabled (toggle off).
+// Format: #cost_of_living=80,humidity=-50,gun_friendliness=0
+// - Positive int: weight, module uses its natural direction
+// - Negative int: weight magnitude, module direction is flipped
+// - Omitted: default weight (50), natural direction
+// - 0: disabled (toggle off)
 
 const DEFAULT_WEIGHT = 50;
 
@@ -14,7 +16,9 @@ export function readHash() {
     const [k, v] = pair.split("=");
     if (!k) continue;
     const n = Number(v);
-    if (Number.isFinite(n)) out[k] = Math.max(0, Math.min(100, Math.round(n)));
+    if (!Number.isFinite(n)) continue;
+    const abs = Math.min(100, Math.abs(Math.round(n)));
+    out[k] = { weight: abs, flipped: n < 0 };
   }
   return Object.keys(out).length ? out : null;
 }
@@ -25,8 +29,8 @@ export function writeHash(weights) {
   clearTimeout(_writeTimer);
   _writeTimer = setTimeout(() => {
     const parts = weights
-      .filter((w) => w.weight !== DEFAULT_WEIGHT) // omit defaults for short URLs
-      .map((w) => `${w.id}=${w.weight}`);
+      .filter((w) => w.weight !== DEFAULT_WEIGHT || w.flipped) // omit defaults for short URLs
+      .map((w) => `${w.id}=${(w.flipped ? -1 : 1) * w.weight}`);
     const hash = parts.length ? `#${parts.join(",")}` : "";
     if (hash !== window.location.hash) {
       // Use replaceState so back-button doesn't fill up with weight nudges.

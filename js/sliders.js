@@ -268,13 +268,21 @@ export function randomizeWeights() {
   }
 }
 
-// Apply a {moduleId: weight} map from a shared URL.
+// Apply a {moduleId: {weight, flipped} | weight} map from a shared URL or preset.
 export function applyWeights(weightMap) {
   for (const m of _modules) {
     const row = document.querySelector(`.slider-row[data-module-id="${m.id}"]`);
     if (!row) continue;
-    const v = weightMap[m.id];
-    if (v === undefined) continue;
+    let entry = weightMap[m.id];
+    if (entry === undefined) continue;
+    // Accept either a raw number (presets) or {weight, flipped} (URL hash).
+    let v, flipped = false;
+    if (typeof entry === "object") {
+      v = entry.weight;
+      flipped = !!entry.flipped;
+    } else {
+      v = entry;
+    }
     row.querySelector("input").value = String(v);
     row.querySelector(".weight").textContent = v === 0 ? "off" : String(v);
     if (v > 0) {
@@ -282,6 +290,13 @@ export function applyWeights(weightMap) {
       _setEnabled(row, true);
     } else {
       _setEnabled(row, false);
+    }
+    // Apply direction.
+    _flipped.set(m.id, flipped);
+    const dirBtn = row.querySelector(".dir-btn");
+    if (dirBtn) {
+      const naturalLow = dirBtn.dataset.naturalLow === "1";
+      _setDirVisual(dirBtn, _effectiveLowerIsBetter(m.id, naturalLow));
     }
   }
 }
