@@ -43,6 +43,7 @@ const errBox = (msg) => {
     renderMap(topology);
     setCitiesDbUrl(CITIES_BASE_URL);
     _populatePresets();
+    _populateMatchStateSelect(db);
     _populateSortBy(modules);
 
     // Apply weights + pins from URL hash if present.
@@ -210,6 +211,26 @@ const errBox = (msg) => {
       e.target.value = "";  // reset dropdown to placeholder
     });
 
+    // "Match a state" — auto-derive the slider weights from one state's
+    // own normalized profile. weight = round(normalized * 100), so the
+    // state's strengths become high weights and weaknesses become low.
+    // Free auto-update: add a module, rebuild, and every state's
+    // match-preset reflects it on the next page load.
+    document.getElementById("match-state-select").addEventListener("change", (e) => {
+      const state = e.target.value;
+      e.target.value = "";
+      if (!state) return;
+      const profile = getStateProfile(db, state);
+      if (!profile.length) return;
+      const weights = {};
+      for (const row of profile) {
+        weights[row.module_id] = Math.round(row.normalized * 100);
+      }
+      resetWeights();
+      applyWeights(weights);
+      refresh();
+    });
+
     // Sync map/ranking if user manually edits the hash (e.g. paste a shared
     // link in the same tab).
     window.addEventListener("hashchange", () => {
@@ -235,6 +256,22 @@ function _populatePresets() {
     opt.value = name;
     opt.textContent = name;
     opt.title = p.description;
+    sel.append(opt);
+  }
+}
+
+function _populateMatchStateSelect(db) {
+  const sel = document.getElementById("match-state-select");
+  // Pull state names straight from the DB so the dropdown can't drift
+  // away from what actually has data.
+  const res = db.exec(
+    "SELECT name FROM place WHERE kind = 'state' ORDER BY name"
+  );
+  if (!res.length) return;
+  for (const [name] of res[0].values) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
     sel.append(opt);
   }
 }
