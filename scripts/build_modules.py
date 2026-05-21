@@ -53,12 +53,15 @@ MODULES_DIR.mkdir(parents=True, exist_ok=True)
 # Make scripts/fetchers/ importable.
 sys.path.insert(0, str(Path(__file__).parent))
 from fetchers import (  # noqa: E402
+    aarp_ltss,
     bls_laus,
     cdc_life_expectancy,
     census_acs,
     census_acs_places,
+    cook_pvi,
     fbi_crime,
     geonames_cities,
+    map_lgbtq,
     open_meteo,
     open_meteo_grid,
     openweather_air,
@@ -376,6 +379,9 @@ def build_api_modules() -> list[dict]:
         ("CDC NCHS",      lambda: cdc_life_expectancy.fetch_modules(fips_to_name)),
         ("Static tables", lambda: static_tables.fetch_modules(fips_to_name)),
         ("FBI CDE",       lambda: fbi_crime.fetch_modules(fips_to_name)),
+        ("Cook PVI",      lambda: cook_pvi.fetch_modules(fips_to_name)),
+        ("MAP LGBTQ",     lambda: map_lgbtq.fetch_modules(fips_to_name)),
+        ("AARP LTSS",     lambda: aarp_ltss.fetch_modules(fips_to_name)),
     ]:
         try:
             mods = fn()

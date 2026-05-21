@@ -33,6 +33,9 @@
     "life_expectancy",
     "violent_crime",
     "property_tax",
+    "political_lean",
+    "lgbtq_policy",
+    "disability_ltss",
     "elevation"
   ]
 }

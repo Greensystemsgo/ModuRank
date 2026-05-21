@@ -1,0 +1,59 @@
+"""Movement Advancement Project (MAP) State LGBTQ Equality Maps.
+
+MAP publishes a composite Overall Policy Tally per state across ~40
+specific laws (non-discrimination, family/parenting, healthcare,
+identity documents, criminal justice, religious exemption, etc.).
+Higher = more protective; negative scores indicate states with active
+anti-LGBTQ policies.
+
+Source: https://www.mapresearch.org/equality-maps
+Snapshot: April 2026 update. To refresh, pull the per-state "Overall
+Policy Score" from the page and update OVERALL_SCORE below.
+"""
+
+from __future__ import annotations
+
+# MAP Overall Policy Score, range observed ~-16 .. +45.5. Snapshot pulled
+# 2026-05-20. Territories excluded; we only include the 50 states + DC.
+OVERALL_SCORE: dict[str, float] = {
+    "Alabama": -10.5, "Alaska": 8.25, "Arizona": 8.75, "Arkansas": -14.25,
+    "California": 45.0, "Colorado": 45.5, "Connecticut": 40.75,
+    "Delaware": 31.0, "District of Columbia": 40.75, "Florida": -5.5,
+    "Georgia": -0.75, "Hawaii": 33.25, "Idaho": -13.75, "Illinois": 45.0,
+    "Indiana": -6.25, "Iowa": 0.5, "Kansas": -1.0, "Kentucky": 5.75,
+    "Louisiana": -6.75, "Maine": 44.5, "Maryland": 43.0,
+    "Massachusetts": 40.0, "Michigan": 30.0, "Minnesota": 36.75,
+    "Mississippi": -8.5, "Missouri": -1.5, "Montana": -3.75,
+    "Nebraska": 1.25, "Nevada": 42.25, "New Hampshire": 32.0,
+    "New Jersey": 41.75, "New Mexico": 36.0, "New York": 44.5,
+    "North Carolina": 6.25, "North Dakota": 10.5, "Ohio": 1.75,
+    "Oklahoma": -6.75, "Oregon": 39.5, "Pennsylvania": 16.75,
+    "Rhode Island": 38.0, "South Carolina": -9.75, "South Dakota": -9.5,
+    "Tennessee": -16.0, "Texas": -6.75, "Utah": 8.0, "Vermont": 39.5,
+    "Virginia": 25.0, "Washington": 40.5, "West Virginia": 0.25,
+    "Wisconsin": 18.25, "Wyoming": -7.0,
+}
+
+
+def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
+    wanted = set(state_fips_to_name.values())
+    data = {st: v for st, v in OVERALL_SCORE.items() if st in wanted}
+    if not data:
+        return []
+    return [{
+        "id": "lgbtq_policy",
+        "category": "Politics & Culture",
+        "label": "LGBTQ Policy Score",
+        "description": (
+            "Movement Advancement Project (MAP) State Policy Tally — "
+            "composite of ~40 specific laws covering non-discrimination, "
+            "family/parenting, healthcare, identity documents, and "
+            "religious exemptions. Higher = more protective; negative "
+            "scores reflect states with active anti-LGBTQ statutes."
+        ),
+        "unit": "score",
+        "source": "Movement Advancement Project (mapresearch.org/equality-maps)",
+        "lower_is_better": False,
+        "methodology": "MAP composite tally across ~40 weighted policy categories.",
+        "data": data,
+    }]
