@@ -65,6 +65,15 @@ const errBox = (msg) => {
     // rank/percentile for the state). `_activeTab` is the user's selection.
     let _activeTab = "cities";
 
+    // Scoring mode: 'capped' (category-weight-cap, prevents the climate
+    // cluster from dominating) or 'flat' (straight weighted average across
+    // modules). 'flat' is used when "Match a state" is the active preset
+    // because the cap suppresses a state's self-similarity score —
+    // climate-cluster states' strengths get averaged down against the
+    // category they all live in.
+    let _scoringMode = "capped";
+    let _matchedState = null;  // state name when match-state is active
+
     const refresh = async () => {
       const weights = getWeights();
       const enabled = weights.filter((w) => w.weight > 0);
@@ -74,7 +83,7 @@ const errBox = (msg) => {
       // State always drives the choropleth map coloring.
       const stateRanking = (sortBy && sortBy !== "weighted")
         ? computeSingleFactor(db, sortBy)
-        : computeRanking(db, weights);
+        : computeRanking(db, weights, _scoringMode);
       updateMap(stateRanking);
 
       // Ranking sidebar switches to cities-in-focused-state when a state
@@ -84,7 +93,7 @@ const errBox = (msg) => {
       if (focused) {
         const stateDb = getStateCitiesDb(focused);
         if (stateDb) {
-          const cityRanking = computeCityRanking(stateDb, weights, focused)
+          const cityRanking = computeCityRanking(stateDb, weights, focused, _scoringMode)
             .filter((c) => c.score != null && c.city_factors > 0)
             .map((c) => ({ state: c.name, score: c.score, factors: c.factors, city_factors: c.city_factors }));
           if (cityRanking.length) {
@@ -114,6 +123,7 @@ const errBox = (msg) => {
       writeHash(weights, getPinned());
       setBreakdownContext(db, weights);
       _updateWinnerChip(displayRanking, enabled.length, sortBy);
+      _updateMatchBadge();
 
       // Compare card supports both state and city pins.
       renderCompare(
@@ -177,10 +187,14 @@ const errBox = (msg) => {
       refresh();
     });
     document.getElementById("reset-weights").addEventListener("click", () => {
+      _scoringMode = "capped";
+      _matchedState = null;
       resetWeights();
       refresh();
     });
     document.getElementById("randomize-weights").addEventListener("click", () => {
+      _scoringMode = "capped";
+      _matchedState = null;
       randomizeWeights();
       refresh();
     });
@@ -203,6 +217,10 @@ const errBox = (msg) => {
       if (!name) return;
       const preset = PRESETS[name];
       if (!preset) return;
+      // Named presets reflect human intent (Retiree, Tax-Sensitive, etc.)
+      // and want the category cap to balance correlated modules.
+      _scoringMode = "capped";
+      _matchedState = null;
       // Start from a default-50 baseline so picking a new preset doesn't leak
       // weights from the previous one.
       resetWeights();
@@ -211,25 +229,48 @@ const errBox = (msg) => {
       e.target.value = "";  // reset dropdown to placeholder
     });
 
-    // "Match a state" — auto-derive the slider weights from one state's
-    // own normalized profile. weight = round(normalized * 100), so the
-    // state's strengths become high weights and weaknesses become low.
-    // Free auto-update: add a module, rebuild, and every state's
-    // match-preset reflects it on the next page load.
+    // "Match a state" — auto-derive slider weights from one state's own
+    // normalized profile. weight = round(normalized * 100), so the state's
+    // strengths become high weights and weaknesses become low. Free
+    // auto-update: add a module, rebuild, and every state's match-preset
+    // reflects it on the next page load.
+    //
+    // Switches to FLAT scoring because category capping suppresses self-
+    // similarity: a state's strengths cluster in one category, which then
+    // gets averaged-equally with all other categories, so the chosen
+    // state typically loses to a more-balanced rival.
     document.getElementById("match-state-select").addEventListener("change", (e) => {
       const state = e.target.value;
-      e.target.value = "";
       if (!state) return;
       const profile = getStateProfile(db, state);
-      if (!profile.length) return;
       const weights = {};
       for (const row of profile) {
-        weights[row.module_id] = Math.round(row.normalized * 100);
+        const n = row.normalized;
+        if (n == null) continue;
+        weights[row.module_id] = Math.max(0, Math.min(100, Math.round(n * 100)));
       }
+      if (!Object.keys(weights).length) {
+        e.target.value = "";
+        return;
+      }
+      _scoringMode = "flat";
+      _matchedState = state;
       resetWeights();
       applyWeights(weights);
       refresh();
+      e.target.value = "";
     });
+
+    function _updateMatchBadge() {
+      const badge = document.getElementById("match-badge");
+      if (!badge) return;
+      if (_matchedState) {
+        badge.textContent = `Matching ${_matchedState}`;
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }
 
     // Sync map/ranking if user manually edits the hash (e.g. paste a shared
     // link in the same tab).
@@ -262,6 +303,7 @@ function _populatePresets() {
 
 function _populateMatchStateSelect(db) {
   const sel = document.getElementById("match-state-select");
+  if (!sel) return;
   // Pull state names straight from the DB so the dropdown can't drift
   // away from what actually has data.
   const res = db.exec(

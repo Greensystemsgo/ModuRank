@@ -66,7 +66,7 @@ export function getCitiesInState(citiesDb, stateName) {
 // every city in that state shares). This way every city has a score for
 // every active module — taxes, gun friendliness, disasters, etc. all
 // contribute even when only state-level data exists.
-export function computeCityRanking(citiesDb, weights, stateName) {
+export function computeCityRanking(citiesDb, weights, stateName, mode = "capped") {
   const active = weights.filter((w) => w.weight > 0);
   if (active.length === 0) {
     return getCitiesInState(citiesDb, stateName).map((c) => ({
@@ -79,9 +79,45 @@ export function computeCityRanking(citiesDb, weights, stateName) {
     Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
-  // Two-level aggregation matching state ranking: weighted average inside
-  // each category, then plain average across active categories.
-  const stmt = citiesDb.prepare(`
+  // See computeRanking() for `mode` semantics. City scoring uses the same
+  // two paths so a state-similarity preset propagates into city ranking.
+  const sql = mode === "flat" ? `
+    WITH w AS (
+      SELECT key AS module_id,
+             ABS(CAST(value AS REAL)) AS weight,
+             CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
+      FROM json_each(:weights)
+    ),
+    city_x_w AS (
+      SELECT c.id AS city_id, w.module_id, w.weight, w.flipped,
+             COALESCE(cr.normalized, sr.normalized) AS normalized,
+             CASE WHEN cr.normalized IS NOT NULL THEN 1 ELSE 0 END AS is_city_level
+      FROM city c
+      CROSS JOIN w
+      LEFT JOIN city_rating cr ON cr.city_id = c.id AND cr.module_id = w.module_id
+      LEFT JOIN state_rating sr ON sr.state = c.state AND sr.module_id = w.module_id
+      WHERE c.state = :state
+    ),
+    contrib AS (
+      SELECT city_id,
+             SUM(CASE WHEN normalized IS NOT NULL
+                      THEN (CASE WHEN flipped = 1 THEN 1.0 - normalized ELSE normalized END) * weight
+                      ELSE 0 END) AS num,
+             SUM(CASE WHEN normalized IS NOT NULL THEN weight ELSE 0 END) AS den,
+             SUM(CASE WHEN normalized IS NOT NULL THEN 1 ELSE 0 END) AS factors,
+             SUM(CASE WHEN normalized IS NOT NULL THEN is_city_level ELSE 0 END) AS city_factors
+      FROM city_x_w
+      GROUP BY city_id
+    )
+    SELECT c.id, c.name, c.latitude, c.longitude, c.population,
+           CASE WHEN co.den > 0 THEN co.num / co.den ELSE NULL END AS score,
+           COALESCE(co.factors, 0) AS factors,
+           COALESCE(co.city_factors, 0) AS city_factors
+    FROM city c
+    LEFT JOIN contrib co ON co.city_id = c.id
+    WHERE c.state = :state
+    ORDER BY c.population DESC
+  ` : `
     WITH w AS (
       SELECT key AS module_id,
              ABS(CAST(value AS REAL)) AS weight,
@@ -125,7 +161,8 @@ export function computeCityRanking(citiesDb, weights, stateName) {
     LEFT JOIN agg a ON a.city_id = c.id
     WHERE c.state = :state
     ORDER BY c.population DESC
-  `);
+  `;
+  const stmt = citiesDb.prepare(sql);
   stmt.bind({ ":weights": weightJson, ":state": stateName });
   const out = [];
   while (stmt.step()) {
@@ -183,7 +220,15 @@ export function listModules(db) {
 // `weights` is [{ id, weight, flipped? }, ...]. Weight 0 = ignored.
 // flipped=true reverses the module's "better direction" — equivalent to
 // using (1 - normalized) instead of normalized for that module.
-export function computeRanking(db, weights) {
+//
+// `mode` controls how weights aggregate:
+//  - 'capped' (default) — weighted avg WITHIN each category, then plain avg
+//    ACROSS categories. Prevents the climate cluster (9 correlated modules)
+//    from dominating against single-module categories.
+//  - 'flat' — straight weighted average across all modules. Used by the
+//    "Match a state" preset because the cap suppresses a state's own
+//    profile (its strengths cluster in one category that then gets capped).
+export function computeRanking(db, weights, mode = "capped") {
   const active = weights.filter((w) => w.weight > 0);
   if (active.length === 0) {
     return db.exec(`
@@ -202,11 +247,34 @@ export function computeRanking(db, weights) {
     Object.fromEntries(active.map((w) => [w.id, (w.flipped ? -1 : 1) * w.weight])),
   );
 
-  // Two-level aggregation (category-weight capping): weighted average inside
-  // each category, then plain average across active categories. Prevents the
-  // climate cluster (9 correlated modules) from dominating against single-
-  // module categories like Education.
-  const sql = `
+  const sql = mode === "flat" ? `
+    WITH w AS (
+      SELECT key AS module_id,
+             ABS(CAST(value AS REAL)) AS weight,
+             CASE WHEN CAST(value AS REAL) < 0 THEN 1 ELSE 0 END AS flipped
+      FROM json_each(:weights)
+    ),
+    contrib AS (
+      SELECT
+        r.place_id,
+        SUM((CASE WHEN w.flipped = 1 THEN 1.0 - r.normalized ELSE r.normalized END) * w.weight) AS num,
+        SUM(w.weight)                AS den,
+        COUNT(*)                     AS factors
+      FROM rating r
+      JOIN w ON w.module_id = r.module_id
+      WHERE r.normalized IS NOT NULL
+      GROUP BY r.place_id
+    )
+    SELECT
+      p.name  AS state,
+      p.fips  AS fips,
+      CASE WHEN c.den > 0 THEN c.num / c.den ELSE 0 END AS score,
+      COALESCE(c.factors, 0) AS factors
+    FROM place p
+    LEFT JOIN contrib c ON c.place_id = p.id
+    WHERE p.kind = 'state'
+    ORDER BY score DESC, p.name ASC
+  ` : `
     WITH w AS (
       SELECT key AS module_id,
              ABS(CAST(value AS REAL)) AS weight,
