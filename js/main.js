@@ -67,12 +67,20 @@ const errBox = (msg) => {
 
     // Scoring mode: 'capped' (category-weight-cap, prevents the climate
     // cluster from dominating) or 'flat' (straight weighted average across
-    // modules). 'flat' is used when "Match a state" is the active preset
-    // because the cap suppresses a state's self-similarity score —
-    // climate-cluster states' strengths get averaged down against the
-    // category they all live in.
+    // modules).
+    //
+    // 'capped' is the default for the equal-weight ("user hasn't touched
+    // anything") state — that's the scenario the cap was added to fix.
+    //
+    // 'flat' kicks in whenever the user expresses *intent* via a preset
+    // or Match-a-state, because the cap dilutes hand-tuned weight
+    // distributions: a preset that puts 80+ on five modules across five
+    // different categories effectively has those five modules all
+    // contribute 1/N of their category, not 1/N of the whole, so the
+    // intent gets washed out. Symptoms: 'Texas Lifer' didn't have Texas
+    // in the top 10, 'New England Charm' put Hawaii at #1.
     let _scoringMode = "capped";
-    let _matchedState = null;  // state name when match-state is active
+    let _activePreset = null;  // { kind: 'preset' | 'match', name: string } or null
 
     const refresh = async () => {
       const weights = getWeights();
@@ -188,13 +196,13 @@ const errBox = (msg) => {
     });
     document.getElementById("reset-weights").addEventListener("click", () => {
       _scoringMode = "capped";
-      _matchedState = null;
+      _activePreset = null;
       resetWeights();
       refresh();
     });
     document.getElementById("randomize-weights").addEventListener("click", () => {
       _scoringMode = "capped";
-      _matchedState = null;
+      _activePreset = null;
       randomizeWeights();
       refresh();
     });
@@ -217,10 +225,11 @@ const errBox = (msg) => {
       if (!name) return;
       const preset = PRESETS[name];
       if (!preset) return;
-      // Named presets reflect human intent (Retiree, Tax-Sensitive, etc.)
-      // and want the category cap to balance correlated modules.
-      _scoringMode = "capped";
-      _matchedState = null;
+      // Named presets are intentional weight distributions; respect them
+      // with flat scoring. (Capped would average their multi-category
+      // 80+ weights down to 'one per category', erasing the intent.)
+      _scoringMode = "flat";
+      _activePreset = { kind: "preset", name };
       // Start from a default-50 baseline so picking a new preset doesn't leak
       // weights from the previous one.
       resetWeights();
@@ -234,11 +243,6 @@ const errBox = (msg) => {
     // strengths become high weights and weaknesses become low. Free
     // auto-update: add a module, rebuild, and every state's match-preset
     // reflects it on the next page load.
-    //
-    // Switches to FLAT scoring because category capping suppresses self-
-    // similarity: a state's strengths cluster in one category, which then
-    // gets averaged-equally with all other categories, so the chosen
-    // state typically loses to a more-balanced rival.
     document.getElementById("match-state-select").addEventListener("change", (e) => {
       const state = e.target.value;
       if (!state) return;
@@ -254,7 +258,7 @@ const errBox = (msg) => {
         return;
       }
       _scoringMode = "flat";
-      _matchedState = state;
+      _activePreset = { kind: "match", name: state };
       resetWeights();
       applyWeights(weights);
       refresh();
@@ -264,8 +268,11 @@ const errBox = (msg) => {
     function _updateMatchBadge() {
       const badge = document.getElementById("match-badge");
       if (!badge) return;
-      if (_matchedState) {
-        badge.textContent = `Matching ${_matchedState}`;
+      if (_activePreset?.kind === "match") {
+        badge.textContent = `Matching ${_activePreset.name}`;
+        badge.classList.remove("hidden");
+      } else if (_activePreset?.kind === "preset") {
+        badge.textContent = `Preset: ${_activePreset.name}`;
         badge.classList.remove("hidden");
       } else {
         badge.classList.add("hidden");
