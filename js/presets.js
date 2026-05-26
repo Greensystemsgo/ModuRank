@@ -3,14 +3,12 @@
 // Keys sorted alphabetically so the dropdown reads predictably.
 
 export const PRESETS = {
-  "California Dreamer": {
+  "Sunshine & Coast": {
     description: "Mild climate, sunshine, jobs, beaches. You'll pay for the privilege.",
     weights: {
       sunshine_hours: 90,
       avg_temperature: 70,
-      feels_like_temperature: 70,
-      relative_humidity: 60,      // CA is dry-ish, lower humidity helps it
-      humidity: 60,
+      relative_humidity: 60,
       bachelors_pct: 60,
       median_income: 60,
       public_lands: 50,
@@ -52,7 +50,6 @@ export const PRESETS = {
       avg_temperature: 30,
       sunshine_hours: 40,
       relative_humidity: 20,
-      humidity: 20,
       public_lands: 30,
       gun_friendliness: 0,
       median_sale_price: 80,
@@ -85,10 +82,8 @@ export const PRESETS = {
       commute_time: 30,
       bachelors_pct: 0,
       gun_friendliness: 0,
-      humidity: 0,
       uv_index: 0,
       avg_temperature: 0,
-      feels_like_temperature: 0,
       relative_humidity: 0,
       precipitation: 0,
       sunshine_hours: 0,
@@ -100,11 +95,10 @@ export const PRESETS = {
     },
   },
 
-  "Florida Snowbird": {
+  "Warm-Weather Retirement": {
     description: "Warm year-round, no income tax, beaches. Bring hurricane insurance.",
     weights: {
       avg_temperature: 100,
-      feels_like_temperature: 80,
       sunshine_hours: 80,
       income_tax: 100,            // FL = 0
       cost_of_living: 50,
@@ -114,7 +108,6 @@ export const PRESETS = {
       home_insurance: 0,          // FL high — but it's the trade-off
       precipitation: 30,
       relative_humidity: 0,       // FL is humid — accept it
-      humidity: 0,
       uv_index: 0,
       disasters: 0,               // FL has hurricanes — known trade-off
       life_expectancy: 40,
@@ -125,7 +118,7 @@ export const PRESETS = {
     },
   },
 
-  "Gun-Owner Libertarian": {
+  "Second Amendment Libertarian": {
     description: "Permissive gun laws + outdoor land + low taxes.",
     weights: {
       gun_friendliness: 100,
@@ -139,13 +132,12 @@ export const PRESETS = {
       median_rent: 30,
       median_income: 0,
       unemployment: 0,
-      humidity: 30,
       relative_humidity: 30,
       home_insurance: 40,
     },
   },
 
-  "Midwest Affordability": {
+  "Heartland Value": {
     description: "Cheap homes, cheap rent, low crime, sane commutes. Iowa nice.",
     weights: {
       cost_of_living: 90,
@@ -165,7 +157,6 @@ export const PRESETS = {
       life_expectancy: 40,
       avg_temperature: 0,
       sunshine_hours: 0,
-      humidity: 0,
       relative_humidity: 0,
       precipitation: 0,
       uv_index: 0,
@@ -175,7 +166,7 @@ export const PRESETS = {
     },
   },
 
-  "Mountain Time": {
+  "High Country Freedom": {
     description: "Public lands, low density, elevation, outdoor freedom. CO, WY, MT, ID, NM territory.",
     weights: {
       elevation: 100,             // mountain country
@@ -186,7 +177,6 @@ export const PRESETS = {
       uv_index: 40,               // higher = more UV, mountain states have it
       avg_temperature: 30,
       relative_humidity: 70,      // mountain west = dry
-      humidity: 70,
       home_value: 40,
       cost_of_living: 50,
       median_rent: 30,
@@ -199,7 +189,7 @@ export const PRESETS = {
     },
   },
 
-  "New England Charm": {
+  "Educated & Safe": {
     description: "Education, low crime, long lives, fall foliage. Pay the property tax.",
     weights: {
       bachelors_pct: 90,
@@ -217,7 +207,6 @@ export const PRESETS = {
       property_tax: 0,            // NE has high property tax — accept it
       income_tax: 0,
       disasters: 60,
-      humidity: 30,
       relative_humidity: 30,
       gun_friendliness: 0,
       uv_index: 30,
@@ -240,7 +229,6 @@ export const PRESETS = {
       uv_index: 20,
       disasters: 40,
       relative_humidity: 30,
-      humidity: 30,
       income_tax: 30,
       gun_friendliness: 30,
       unemployment: 20,
@@ -248,7 +236,7 @@ export const PRESETS = {
     },
   },
 
-  "Pacific Northwest": {
+  "Rainy Tech Hub": {
     description: "Tech jobs (Seattle/Portland), no WA income tax, outdoors, drizzly cool.",
     weights: {
       median_income: 80,
@@ -262,7 +250,6 @@ export const PRESETS = {
       precipitation: 0,           // wet — known feature, not bug
       uv_index: 30,
       relative_humidity: 0,
-      humidity: 0,
       home_value: 30,
       median_rent: 30,
       cost_of_living: 30,
@@ -284,9 +271,7 @@ export const PRESETS = {
       sales_tax: 40,
       sunshine_hours: 60,
       avg_temperature: 50,
-      feels_like_temperature: 40,
       relative_humidity: 50,
-      humidity: 40,
       disasters: 60,
       public_lands: 50,
       unemployment: 0,
@@ -310,9 +295,7 @@ export const PRESETS = {
       home_insurance: 80,
       disasters: 80,
       avg_temperature: 70,
-      feels_like_temperature: 50,
       relative_humidity: 60,      // lower = drier = better for joints
-      humidity: 60,
       sunshine_hours: 70,
       precipitation: 50,
       home_value: 70,
@@ -343,14 +326,12 @@ export const PRESETS = {
       avg_temperature: 0,
       sunshine_hours: 0,
       relative_humidity: 0,
-      humidity: 0,
       uv_index: 0,
       public_lands: 0,
       gun_friendliness: 0,
       median_income: 0,
       unemployment: 0,
       precipitation: 0,
-      feels_like_temperature: 0,
       median_sale_price: 0,
       housing_inventory: 0,
       days_on_market: 0,
@@ -358,7 +339,7 @@ export const PRESETS = {
     },
   },
 
-  "Texas Lifer": {
+  "Low-Tax Traditionalist": {
     description: "No income tax, jobs, BBQ, room to roam. Yes there's a reason to live here.",
     weights: {
       income_tax: 100,            // TX = 0
@@ -378,7 +359,6 @@ export const PRESETS = {
       property_tax: 30,           // TX has high property tax — not a focus
       bachelors_pct: 20,
       life_expectancy: 20,
-      humidity: 0,
       relative_humidity: 0,
       precipitation: 0,
       uv_index: 0,
@@ -400,10 +380,8 @@ export const PRESETS = {
       sunshine_hours: 60,
       disasters: 70,
       relative_humidity: 40,
-      humidity: 40,
       precipitation: 30,
       avg_temperature: 30,
-      feels_like_temperature: 30,
       cost_of_living: 40,
       median_age: 0,
       uv_index: 30,
@@ -439,11 +417,9 @@ export const PRESETS = {
       home_insurance: 20,
       income_tax: 30,
       gun_friendliness: 0,
-      humidity: 0,
       uv_index: 0,
       public_lands: 0,
       avg_temperature: 0,
-      feels_like_temperature: 0,
       precipitation: 0,
       housing_inventory: 0,
       days_on_market: 0,

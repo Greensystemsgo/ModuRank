@@ -7,10 +7,9 @@
 const DEFAULT_WEIGHT = 50;
 let _modules = [];
 let _listener = null;
+let _simpleMode = false;
 
-// Remembers the last non-zero weight so toggling back on restores it.
 const _lastWeight = new Map();
-// True if the user has flipped this module from its natural direction.
 const _flipped = new Map();
 
 const CATEGORY_ORDER = [
@@ -354,3 +353,117 @@ export function applyWeights(weightMap) {
 }
 
 export function onWeightsChange(fn) { _listener = fn; }
+
+// Simple mode: one slider per category. Sets all modules in that category
+// to the same weight. Toggled via the Simple/Advanced buttons in the UI.
+let _simpleSlidersEl = null;
+
+export function setSliderMode(mode) {
+  _simpleMode = mode === "simple";
+  const advancedEl = document.getElementById("sliders");
+  if (!advancedEl) return;
+
+  // Toggle visibility of advanced sliders (tab bar + groups)
+  const tabBar = advancedEl.querySelector(".tab-bar");
+  const groups = advancedEl.querySelectorAll(".slider-group");
+  if (_simpleMode) {
+    if (tabBar) tabBar.style.display = "none";
+    groups.forEach((g) => { g.style.display = "none"; });
+    _ensureSimpleSliders(advancedEl);
+    _simpleSlidersEl.style.display = "";
+  } else {
+    if (tabBar) tabBar.style.display = "";
+    _applyTabFilter();
+    if (_simpleSlidersEl) _simpleSlidersEl.style.display = "none";
+  }
+}
+
+function _ensureSimpleSliders(container) {
+  if (_simpleSlidersEl) return;
+  _simpleSlidersEl = document.createElement("div");
+  _simpleSlidersEl.className = "simple-sliders";
+
+  const grouped = _groupByCategory(_modules);
+  for (const [cat, group] of grouped) {
+    const row = document.createElement("div");
+    row.className = "slider-row compact";
+    row.dataset.category = cat;
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "toggle on";
+    toggle.setAttribute("aria-pressed", "true");
+    toggle.textContent = "on";
+
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = `${cat} (${group.length})`;
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "100";
+    slider.step = "1";
+    slider.value = String(DEFAULT_WEIGHT);
+
+    const weight = document.createElement("span");
+    weight.className = "weight";
+    weight.textContent = String(DEFAULT_WEIGHT);
+
+    slider.addEventListener("input", () => {
+      const v = Number(slider.value);
+      weight.textContent = v === 0 ? "off" : String(v);
+      _setCategoryWeight(cat, v);
+      if (v > 0) {
+        row.classList.remove("off");
+        toggle.classList.add("on"); toggle.classList.remove("off");
+        toggle.textContent = "on";
+      } else {
+        row.classList.add("off");
+        toggle.classList.remove("on"); toggle.classList.add("off");
+        toggle.textContent = "off";
+      }
+      if (_listener) _listener();
+    });
+
+    toggle.addEventListener("click", () => {
+      const isOn = !row.classList.contains("off");
+      if (isOn) {
+        slider.value = "0";
+        weight.textContent = "off";
+        _setCategoryWeight(cat, 0);
+        row.classList.add("off");
+        toggle.classList.remove("on"); toggle.classList.add("off");
+        toggle.textContent = "off";
+      } else {
+        slider.value = String(DEFAULT_WEIGHT);
+        weight.textContent = String(DEFAULT_WEIGHT);
+        _setCategoryWeight(cat, DEFAULT_WEIGHT);
+        row.classList.remove("off");
+        toggle.classList.add("on"); toggle.classList.remove("off");
+        toggle.textContent = "on";
+      }
+      if (_listener) _listener();
+    });
+
+    row.append(toggle, label, slider, weight);
+    _simpleSlidersEl.append(row);
+  }
+  container.append(_simpleSlidersEl);
+}
+
+function _setCategoryWeight(cat, value) {
+  for (const m of _modules) {
+    if ((m.category || "Other") !== cat) continue;
+    const row = document.querySelector(`.slider-row[data-module-id="${m.id}"]`);
+    if (!row) continue;
+    row.querySelector("input").value = String(value);
+    row.querySelector(".weight").textContent = value === 0 ? "off" : String(value);
+    if (value > 0) {
+      _lastWeight.set(m.id, value);
+      _setEnabled(row, true);
+    } else {
+      _setEnabled(row, false);
+    }
+  }
+}

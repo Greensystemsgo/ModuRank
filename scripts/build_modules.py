@@ -40,7 +40,7 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = Path("C:/Users/NCorriveau/dev/scrapewiki")
+SRC = Path(os.environ.get("MODURANK_SRC_DIR", ROOT.parent / "scrapewiki"))
 DATA_DIR = ROOT / "data"
 MODULES_DIR = DATA_DIR / "modules"
 DB_PATH = DATA_DIR / "moduRank.sqlite"
@@ -251,10 +251,10 @@ def build_modules() -> list[dict]:
             "id": "uv_index",
             "category": "Climate",
             "label": "UV Exposure",
-            "description": "Annual UV exposure. Higher = more UV.",
+            "description": "Annual UV exposure. Higher = more UV (skin cancer risk).",
             "unit": "J/m^2",
             "source": "World Population Review - UV Index by State 2025",
-            "lower_is_better": False,
+            "lower_is_better": True,
             "methodology": None,
             "data": sheet_to_dict(wb["UVIndex"], 0, 1),
         },
@@ -291,17 +291,7 @@ def build_modules() -> list[dict]:
             "methodology": None,
             "data": sheet_to_dict(wb["PublicLands"], 0, 3),
         },
-        {
-            "id": "humidity",
-            "category": "Climate",
-            "label": "Humidity (annual avg)",
-            "description": "Average relative humidity (fraction 0-1). Lower = drier.",
-            "unit": "fraction",
-            "source": "World Population Review - Most Humid States 2025",
-            "lower_is_better": True,
-            "methodology": None,
-            "data": sheet_to_dict(wb["AverageHumidityDewPoint"], 0, 1),
-        },
+        # humidity module removed — redundant with relative_humidity from Open-Meteo
         {
             "id": "sales_tax",
             "category": "Cost & Taxes",
@@ -355,7 +345,7 @@ def _build_elevation_state_module() -> dict | None:
         return None
     return {
         "id": "elevation",
-        "category": "Climate",
+        "category": "Outdoors",
         "label": "Elevation",
         "description": "Population-weighted mean elevation of incorporated places (meters above sea level). Higher = mountain state.",
         "unit": "m",
@@ -567,7 +557,7 @@ def write_cities_sqlite(state_modules: list[dict] | None = None) -> None:
             "description": "Above sea level, meters (GeoNames). Higher = mountain town, lower = coastal / valley.",
             "unit": "m",
             "lower_is_better": False,
-            "category": "Climate",
+            "category": "Outdoors",
             "data": elev_data,
         })
         print(f"  [GeoNames] elevation ({len(elev_data):,} cities)")

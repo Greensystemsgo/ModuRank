@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com 'wasm-unsafe-eval'; style-src 'self' https://unpkg.com 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org https://server.arcgisonline.com https://*.basemaps.cartocdn.com; connect-src 'self' https://cdnjs.cloudflare.com; font-src 'self'" />
   <title>ModuRank — Find your best US state</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -76,13 +77,23 @@
           <select id="match-state-select" class="preset-select" title="Set weights from a state's own normalized profile — auto-derived from the data, not hand-curated">
             <option value="">Match a state…</option>
           </select>
-          <span id="match-badge" class="match-badge hidden" title="Match-a-state uses flat scoring (no category cap) so the chosen state can actually win when its strengths cluster in one category."></span>
+          <span id="match-badge" class="match-badge hidden"></span>
+          <div class="scoring-toggle" id="scoring-toggle" role="radiogroup" aria-label="Scoring mode" title="Balanced: equal weight per category. Raw: straight weighted average.">
+            <button class="score-mode-btn active" data-mode="capped">Balanced</button>
+            <button class="score-mode-btn" data-mode="flat">Raw</button>
+          </div>
           <button id="share-link" class="btn-secondary" title="Copy a shareable link to these settings">🔗 Share</button>
           <button id="randomize-weights" class="btn-secondary" title="Random weights for every factor">🎲 Randomize</button>
           <button id="reset-weights" class="btn-secondary">Reset</button>
         </div>
       </div>
-      <p class="hint">0 = ignore this factor. Higher = matters more.</p>
+      <div class="slider-mode-bar">
+        <p class="hint">0 = ignore this factor. Higher = matters more.</p>
+        <div class="slider-mode-toggle" id="slider-mode-toggle" role="radiogroup" aria-label="Slider detail level">
+          <button class="slider-mode-btn" data-mode="simple">Simple</button>
+          <button class="slider-mode-btn active" data-mode="advanced">Advanced</button>
+        </div>
+      </div>
       <div id="sliders" class="sliders"></div>
     </section>
 
@@ -117,7 +128,7 @@
   </main>
 
   <footer class="app-footer">
-    <span>ModuRank &middot; static data, no APIs hit at runtime</span>
+    <span>ModuRank <span id="build-version" class="build-version"></span> &middot; static data, no APIs hit at runtime</span>
     <span class="footer-sep">·</span>
     <button id="open-about" class="footer-link">How it works</button>
     <span class="footer-sep">·</span>
@@ -132,7 +143,12 @@
       <p>Slide the dials, the map and ranking update live. Click a state to drill into its cities. Click cities (or use the Pin button) to compare them side-by-side.</p>
 
       <h3>Scoring</h3>
-      <p>For each module, every state's value is min-max normalized into 0–1 (1 = best in the country, 0 = worst). Your weighted score is the weighted average of those normalized values across modules you have turned on. Map colors are <b>rank-based</b> — the top-ranked state is full green regardless of the absolute score gap.</p>
+      <p>For each module, every state's value is min-max normalized into 0–1 (1 = best in the country, 0 = worst). Two scoring modes are available via the <b>Balanced / Raw</b> toggle:</p>
+      <ul>
+        <li><b>Balanced</b> — weighted average within each category, then average across categories. Prevents correlated modules (e.g. 6 climate factors) from dominating.</li>
+        <li><b>Raw</b> — straight weighted average across all modules. Used by presets and Match-a-state to preserve their hand-tuned intent.</li>
+      </ul>
+      <p>Map colors are <b>rank-based</b> — the top-ranked state is full green regardless of the absolute score gap.</p>
 
       <h3>City scoring</h3>
       <p>Cities are scored the same way. Modules with their own per-city data (income, rent, home value, education, climate, air quality) use the city's actual value. Modules with state-only data (taxes, gun friendliness, life expectancy, etc.) inherit from the city's state — marked <em>(state)</em> in the tooltip. Every city ends up scored across every module.</p>
@@ -141,13 +157,13 @@
       <ul class="about-sources">
         <li><b>Census Bureau ACS 5-year</b> — income, home value, rent, population, density, age, education, broadband, commute, uninsured (state + city level)</li>
         <li><b>BLS LAUS</b> — unemployment rate (state)</li>
-        <li><b>Open-Meteo</b> — temperature, feels-like, humidity, sunshine, precipitation (state capital + per-city grid)</li>
+        <li><b>Open-Meteo</b> — temperature, humidity, sunshine, precipitation (state capital + per-city grid)</li>
         <li><b>OpenWeather Air Pollution</b> — PM2.5 air quality (per-city grid)</li>
         <li><b>Redfin Data Center</b> — median sale price, days on market, $/sqft, inventory (state)</li>
         <li><b>CDC NCHS 2021</b> — life expectancy (state)</li>
         <li><b>FBI UCR 2022</b> — violent crime rate (state; FL/MD/PA omitted due to NIBRS non-reporting)</li>
         <li><b>Tax Foundation 2023</b> — effective property tax rate (state)</li>
-        <li><b>World Population Review / FEMA</b> — cost of living, sales tax, income tax, home insurance, public lands, humidity, UV exposure, natural disasters (state)</li>
+        <li><b>World Population Review / FEMA</b> — cost of living, sales tax, income tax, home insurance, public lands, UV exposure, natural disasters (state)</li>
         <li><b>GeoNames US bulk dump (CC-BY)</b> — 155k US incorporated places with lat/lon and population</li>
         <li><b>us-atlas / d3</b> — state polygons; <b>Leaflet</b> + Carto + Esri — base tiles</li>
       </ul>
@@ -160,10 +176,10 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script src="https://unpkg.com/topojson-client@3" integrity="sha384-VX5JkN8keXu1QwJlCRv8BGBrEHkt651YwxRTdBK3KgU+JSoVVvDyX6N6Rs7C6dsh" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js" integrity="sha384-8D3Rsfo535FqoC1pHCCQMrNf75UgzyoG/HQm9zOzITRrz3QKzecc2E7JXKGCXoWu" crossorigin="anonymous"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

@@ -63,7 +63,6 @@ def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dic
     print(f"  [Open-Meteo grid] {len(cells):,} unique cells for {sum(len(v) for v in cells.values()):,} cities")
 
     avg_temp: dict[tuple[str, str], float] = {}
-    feels:    dict[tuple[str, str], float] = {}
     humid:    dict[tuple[str, str], float] = {}
     sun:      dict[tuple[str, str], float] = {}
     rain:     dict[tuple[str, str], float] = {}
@@ -76,14 +75,12 @@ def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dic
             continue
         daily = payload.get("daily") or {}
         temps = [t for t in daily.get("temperature_2m_mean", []) if t is not None]
-        fls   = [t for t in daily.get("apparent_temperature_mean", []) if t is not None]
         suns  = [s for s in daily.get("sunshine_duration", []) if s is not None]
         rains = [r for r in daily.get("precipitation_sum", []) if r is not None]
         hourly = payload.get("hourly") or {}
         rhs   = [h for h in hourly.get("relative_humidity_2m", []) if h is not None]
 
         avg_t  = round(sum(temps) / len(temps), 1) if temps else None
-        feel_t = round(sum(fls) / len(fls), 1)     if fls   else None
         rh     = round(sum(rhs)  / len(rhs), 1)    if rhs   else None
         sn     = round(sum(suns) / 3600, 0)        if suns  else None
         rn     = round(sum(rains), 1)              if rains else None
@@ -91,7 +88,6 @@ def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dic
         for c in city_list:
             key = (c["state"], c["name"])
             if avg_t  is not None: avg_temp[key]  = avg_t
-            if feel_t is not None: feels[key]    = feel_t
             if rh     is not None: humid[key]    = rh
             if sn     is not None: sun[key]      = sn
             if rn     is not None: rain[key]     = rn
@@ -100,9 +96,6 @@ def fetch_city_climate(cities: list[dict], cache_only: bool = False) -> list[dic
         ("avg_temperature",        "Average Temperature",        "°F",         False,
          "Mean daily temperature (Open-Meteo 2024). Higher = warmer.",
          avg_temp),
-        ("feels_like_temperature", "Feels-Like Temperature",     "°F",         False,
-         "Mean apparent temperature combining heat + humidity + wind.",
-         feels),
         ("relative_humidity",      "Relative Humidity",          "%",          True,
          "Annual mean relative humidity. Lower = drier.",
          humid),

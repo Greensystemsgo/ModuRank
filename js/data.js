@@ -1,6 +1,9 @@
 // SQLite data layer. One DB load on boot; everything queries against it.
 
 let _SQL = null;
+let _cacheVersion = "";
+
+export function setCacheVersion(v) { _cacheVersion = v ? `?v=${v}` : ""; }
 
 export async function loadDatabase({ sqlJsLocate, dbUrl }) {
   _SQL = await window.initSqlJs({ locateFile: sqlJsLocate });
@@ -28,10 +31,16 @@ export function loadCitiesIndex(url) {
   return _indexDbPromise;
 }
 
-const _stateDbPromises = new Map();
+const _stateDbCache = new Map();
+const _STATE_DB_MAX = 5;
 export function loadStateCitiesDb(stateSlug, baseUrl) {
-  if (_stateDbPromises.has(stateSlug)) return _stateDbPromises.get(stateSlug);
-  const url = `${baseUrl}/${stateSlug}.sqlite`;
+  if (_stateDbCache.has(stateSlug)) {
+    const entry = _stateDbCache.get(stateSlug);
+    _stateDbCache.delete(stateSlug);
+    _stateDbCache.set(stateSlug, entry);
+    return entry;
+  }
+  const url = `${baseUrl}/${stateSlug}.sqlite${_cacheVersion}`;
   const p = (async () => {
     if (!_SQL) throw new Error("sql.js not initialized yet");
     const buf = await fetch(url).then((r) => {
@@ -40,7 +49,13 @@ export function loadStateCitiesDb(stateSlug, baseUrl) {
     });
     return new _SQL.Database(new Uint8Array(buf));
   })();
-  _stateDbPromises.set(stateSlug, p);
+  if (_stateDbCache.size >= _STATE_DB_MAX) {
+    const oldest = _stateDbCache.keys().next().value;
+    const evicted = _stateDbCache.get(oldest);
+    _stateDbCache.delete(oldest);
+    evicted.then((db) => db.close()).catch(() => {});
+  }
+  _stateDbCache.set(stateSlug, p);
   return p;
 }
 

@@ -2,10 +2,10 @@
 // Loads SQLite (via sql.js) once, wires sliders/map/ranking to score queries.
 
 import { initTheme } from "./theme.js";
-import { loadDatabase, loadCitiesIndex, listModules, computeRanking, computeSingleFactor, getStateBreakdown, getStateProfile, computeCityRanking } from "./data.js";
+import { loadDatabase, loadCitiesIndex, listModules, computeRanking, computeSingleFactor, getStateBreakdown, getStateProfile, computeCityRanking, setCacheVersion } from "./data.js";
 import {
   renderSliders, getWeights, onWeightsChange,
-  resetWeights, randomizeWeights, applyWeights,
+  resetWeights, randomizeWeights, applyWeights, setSliderMode,
 } from "./sliders.js";
 import { readHash, writeHash, copyShareLink } from "./url_state.js";
 import { PRESETS } from "./presets.js";
@@ -16,9 +16,14 @@ import { renderRanking, renderStateProfile } from "./ranking.js";
 
 initTheme();
 
+const BUILD_VERSION = "2026-05-25";
+setCacheVersion(BUILD_VERSION);
+const vEl = document.getElementById("build-version");
+if (vEl) vEl.textContent = `v${BUILD_VERSION}`;
+
 const SQL_WASM_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
-const DB_URL = "data/moduRank.sqlite";
-const CITIES_INDEX_URL = "data/cities_index.sqlite";
+const DB_URL = `data/moduRank.sqlite?v=${BUILD_VERSION}`;
+const CITIES_INDEX_URL = `data/cities_index.sqlite?v=${BUILD_VERSION}`;
 const CITIES_BASE_URL = "data/cities";  // per-state lazy DBs
 const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
 
@@ -197,12 +202,14 @@ const errBox = (msg) => {
     document.getElementById("reset-weights").addEventListener("click", () => {
       _scoringMode = "capped";
       _activePreset = null;
+      _syncScoringToggle();
       resetWeights();
       refresh();
     });
     document.getElementById("randomize-weights").addEventListener("click", () => {
       _scoringMode = "capped";
       _activePreset = null;
+      _syncScoringToggle();
       randomizeWeights();
       refresh();
     });
@@ -215,6 +222,27 @@ const errBox = (msg) => {
     });
 
     document.getElementById("sort-by-select").addEventListener("change", () => refresh());
+
+    // Simple / Advanced slider mode toggle
+    document.getElementById("slider-mode-toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest(".slider-mode-btn");
+      if (!btn || btn.classList.contains("active")) return;
+      for (const b of document.querySelectorAll(".slider-mode-btn")) {
+        b.classList.toggle("active", b === btn);
+      }
+      setSliderMode(btn.dataset.mode);
+    });
+
+    // Scoring mode toggle (Balanced / Raw)
+    document.getElementById("scoring-toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest(".score-mode-btn");
+      if (!btn || btn.classList.contains("active")) return;
+      _scoringMode = btn.dataset.mode;
+      for (const b of document.querySelectorAll(".score-mode-btn")) {
+        b.classList.toggle("active", b.dataset.mode === _scoringMode);
+      }
+      refresh();
+    });
 
     document.getElementById("compare-clear").addEventListener("click", () => {
       import("./compare.js").then((m) => m.clearPins());
@@ -230,8 +258,7 @@ const errBox = (msg) => {
       // 80+ weights down to 'one per category', erasing the intent.)
       _scoringMode = "flat";
       _activePreset = { kind: "preset", name };
-      // Start from a default-50 baseline so picking a new preset doesn't leak
-      // weights from the previous one.
+      _syncScoringToggle();
       resetWeights();
       applyWeights(preset.weights);
       refresh();
@@ -259,11 +286,18 @@ const errBox = (msg) => {
       }
       _scoringMode = "flat";
       _activePreset = { kind: "match", name: state };
+      _syncScoringToggle();
       resetWeights();
       applyWeights(weights);
       refresh();
       e.target.value = "";
     });
+
+    function _syncScoringToggle() {
+      for (const b of document.querySelectorAll(".score-mode-btn")) {
+        b.classList.toggle("active", b.dataset.mode === _scoringMode);
+      }
+    }
 
     function _updateMatchBadge() {
       const badge = document.getElementById("match-badge");
@@ -373,8 +407,8 @@ const CATEGORY_FALLBACK = {
   commute_time: "Demographics",
   bachelors_pct: "Education",
   life_expectancy: "Health", uninsured_pct: "Health",
-  avg_temperature: "Climate", feels_like_temperature: "Climate",
-  relative_humidity: "Climate", humidity: "Climate",
+  avg_temperature: "Climate",
+  relative_humidity: "Climate",
   sunshine_hours: "Climate", precipitation: "Climate", uv_index: "Climate",
   disasters: "Safety & Risk", air_quality_pm25: "Safety & Risk",
   violent_crime: "Safety & Risk",

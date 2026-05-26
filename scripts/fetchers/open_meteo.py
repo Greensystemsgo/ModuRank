@@ -79,7 +79,7 @@ def _fetch_year(name: str, lat: float, lon: float) -> dict | None:
         "https://archive-api.open-meteo.com/v1/archive"
         f"?latitude={lat}&longitude={lon}"
         f"&start_date={YEAR}-01-01&end_date={YEAR}-12-31"
-        "&daily=temperature_2m_mean,apparent_temperature_mean,"
+        "&daily=temperature_2m_mean,"
         "sunshine_duration,precipitation_sum"
         "&hourly=relative_humidity_2m"
         "&temperature_unit=fahrenheit"
@@ -99,7 +99,6 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
     wanted = set(state_fips_to_name.values())
 
     avg_temp:    dict[str, float] = {}
-    feels_like:  dict[str, float] = {}
     rel_humid:   dict[str, float] = {}
     sunshine:    dict[str, float] = {}
     precip:      dict[str, float] = {}
@@ -112,14 +111,12 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             continue
         daily = payload.get("daily") or {}
         temps   = [t for t in daily.get("temperature_2m_mean", []) if t is not None]
-        feels   = [t for t in daily.get("apparent_temperature_mean", []) if t is not None]
         suns    = [s for s in daily.get("sunshine_duration", []) if s is not None]
         rains   = [r for r in daily.get("precipitation_sum", []) if r is not None]
         hourly  = payload.get("hourly") or {}
         humid   = [h for h in hourly.get("relative_humidity_2m", []) if h is not None]
 
         if temps:  avg_temp[name]   = round(sum(temps) / len(temps), 1)
-        if feels:  feels_like[name] = round(sum(feels) / len(feels), 1)
         if humid:  rel_humid[name]  = round(sum(humid) / len(humid), 1)
         if suns:   sunshine[name]   = round(sum(suns) / 3600, 0)
         if rains:  precip[name]     = round(sum(rains), 1)
@@ -138,21 +135,6 @@ def fetch_modules(state_fips_to_name: dict[str, str]) -> list[dict]:
             "lower_is_better": False,
             "methodology": None,
             "data": avg_temp,
-        },
-        {
-            "id": "feels_like_temperature",
-            "label": "Feels-Like Temperature",
-            "description": (
-                f"Mean apparent (\"feels-like\") temperature in {YEAR} — "
-                "combines temperature, humidity, wind, and radiation. Better "
-                "comfort proxy than raw temp."
-            ),
-            "unit": "°F",
-            "category": "Climate",
-            "source": "Open-Meteo Archive API",
-            "lower_is_better": False,
-            "methodology": None,
-            "data": feels_like,
         },
         {
             "id": "relative_humidity",
